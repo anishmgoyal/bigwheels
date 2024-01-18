@@ -48,11 +48,11 @@ void GraphicsBenchmarkApp::InitKnobs()
     PPX_ASSERT_MSG(!cl_options.HasExtraOption("vs-shader-index"), "--vs-shader-index flag has been replaced, instead use --vs and specify the name of the vertex shader");
     PPX_ASSERT_MSG(!cl_options.HasExtraOption("ps-shader-index"), "--ps-shader-index flag has been replaced, instead use --ps and specify the name of the pixel shader");
 
-    GetKnobManager().InitKnob(&pEnableSkyBox, "enable-skybox", true);
+    GetKnobManager().InitKnob(&pEnableSkyBox, "enable-skybox", false);
     pEnableSkyBox->SetDisplayName("Enable SkyBox");
     pEnableSkyBox->SetFlagDescription("Enable the SkyBox in the scene.");
 
-    GetKnobManager().InitKnob(&pEnableSpheres, "enable-spheres", true);
+    GetKnobManager().InitKnob(&pEnableSpheres, "enable-spheres", false);
     pEnableSpheres->SetDisplayName("Enable Spheres");
     pEnableSpheres->SetFlagDescription("Enable the Spheres in the scene.");
 
@@ -187,7 +187,7 @@ void GraphicsBenchmarkApp::Config(ppx::ApplicationSettings& settings)
 #if defined(PPX_BUILD_XR)
     // XR specific settings
     settings.grfx.pacedFrameRate   = 0;
-    settings.xr.enable             = false; // Change this to true to enable the XR mode
+    settings.xr.enable             = true; // Change this to true to enable the XR mode
     settings.xr.enableDebugCapture = false;
 #endif
     settings.standardKnobsDefaultValue.enableMetrics        = true;
