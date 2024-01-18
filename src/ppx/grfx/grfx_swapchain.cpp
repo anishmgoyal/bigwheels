@@ -155,22 +155,6 @@ void Swapchain::DestroyColorImages()
 
 Result Swapchain::CreateDepthImages()
 {
-    if ((mCreateInfo.depthFormat != grfx::FORMAT_UNDEFINED) && mDepthImages.empty()) {
-        for (uint32_t i = 0; i < mCreateInfo.imageCount; ++i) {
-            grfx::ImageCreateInfo dpCreateInfo = ImageCreateInfo::DepthStencilTarget(mCreateInfo.width, mCreateInfo.height, mCreateInfo.depthFormat);
-            dpCreateInfo.ownership             = grfx::OWNERSHIP_RESTRICTED;
-            dpCreateInfo.DSVClearValue         = {1.0f, 0xFF};
-
-            grfx::ImagePtr depthStencilTarget;
-            auto           ppxres = GetDevice()->CreateImage(&dpCreateInfo, &depthStencilTarget);
-            if (Failed(ppxres)) {
-                return ppxres;
-            }
-
-            mDepthImages.push_back(depthStencilTarget);
-        }
-    }
-
     return ppx::SUCCESS;
 }
 
