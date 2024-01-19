@@ -14,9 +14,10 @@
 
 #include "VsOutput.hlsli"
 
-VSOutputPos vsmain(float4 Position : POSITION)
+VSOutputPos vsmain(float4 Position : POSITION, float2 texcoord: TEXCOORD)
 {
 	VSOutputPos result;
 	result.position = Position;
+	result.texcoord = texcoord;
 	return result;
 }

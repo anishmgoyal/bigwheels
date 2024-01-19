@@ -36,6 +36,9 @@ static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLER_REGISTER       = 7;
 
 static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER = 0;
 
+static constexpr size_t QUADS_DUMMY_BUFFER_REGISTER  = 1;
+static constexpr size_t QUADS_POINT_SAMPLER_REGISTER = 2;
+
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
 #elif defined(USE_VK)
@@ -111,11 +114,11 @@ void GraphicsBenchmarkApp::InitKnobs()
     pDepthTestWrite->SetFlagDescription("Enable depth test and depth write for spheres.");
     pDepthTestWrite->SetIndent(1);
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ 0, /* minValue = */ 0, kMaxFullscreenQuadsCount);
+    GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ 750, /* minValue = */ 0, kMaxFullscreenQuadsCount);
     pFullscreenQuadsCount->SetDisplayName("Number of Fullscreen Quads");
     pFullscreenQuadsCount->SetFlagDescription("Select the number of fullscreen quads to render.");
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsType, "fullscreen-quads-type", 0, kFullscreenQuadsTypes);
+    GetKnobManager().InitKnob(&pFullscreenQuadsType, "fullscreen-quads-type", 2, kFullscreenQuadsTypes);
     pFullscreenQuadsType->SetDisplayName("Type");
     pFullscreenQuadsType->SetFlagDescription("Select the type of the fullscreen quads. See also `--fullscreen-quads-count`.");
     pFullscreenQuadsType->SetIndent(1);
@@ -221,10 +224,19 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.maxLod                  = FLT_MAX;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mLinearSampler));
     }
+    {
+        grfx::SamplerCreateInfo samplerCreateInfo = {};
+        samplerCreateInfo.magFilter               = grfx::FILTER_NEAREST;
+        samplerCreateInfo.minFilter               = grfx::FILTER_NEAREST;
+        samplerCreateInfo.mipmapMode              = grfx::SAMPLER_MIPMAP_MODE_NEAREST;
+        samplerCreateInfo.minLod                  = 0;
+        samplerCreateInfo.maxLod                  = FLT_MAX;
+        PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mPointSampler));
+    }
     // Descriptor Pool
     {
         grfx::DescriptorPoolCreateInfo createInfo = {};
-        createInfo.sampler                        = 5 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for blit
+        createInfo.sampler                        = 6 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for blit
         createInfo.sampledImage                   = 6 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for quads, 1 for blit
         createInfo.uniformBuffer                  = 2 * GetNumFramesInFlight(); // 1 for skybox, 1 for spheres
         createInfo.structuredBuffer               = 1;                          // 1 quad dummy
@@ -494,7 +506,8 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
     {
         grfx::DescriptorSetLayoutCreateInfo layoutCreateInfo = {};
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
-        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(1, grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_DUMMY_BUFFER_REGISTER, grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_POINT_SAMPLER_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLER));
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mFullscreenQuads.descriptorSetLayout));
     }
 
@@ -561,14 +574,16 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE_REGISTER, 0, mQuadsTexture));
 
         grfx::WriteDescriptor write  = {};
-        write.binding                = 1;
+        write.binding                = QUADS_DUMMY_BUFFER_REGISTER;
         write.arrayIndex             = 0;
         write.type                   = grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER;
         write.bufferOffset           = 0;
         write.bufferRange            = PPX_WHOLE_SIZE;
         write.structuredElementCount = 1;
         write.pBuffer                = mQuadsDummyBuffer;
-        PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(1, &write));
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(QUADS_DUMMY_BUFFER_REGISTER, &write));
+
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampler(QUADS_POINT_SAMPLER_REGISTER, 0, mPointSampler));
     }
 }
 
@@ -618,9 +633,9 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsMeshes()
     std::vector<float> vertexData = {
         // one large triangle covering entire screen area
         // position
-        -1.0f, -1.0f, 0.0f,
-        -1.0f,  3.0f, 0.0f,
-         3.0f, -1.0f, 0.0f,
+        -1.0f, -1.0f, 0.0f, 0.f, 1.f,
+        -1.0f,  3.0f, 0.0f, 0.f, -1.f,
+         3.0f, -1.0f, 0.0f, 2.f, 1.f
     };
     // clang-format on
     uint32_t dataSize = SizeInBytesU32(vertexData);
@@ -639,6 +654,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsMeshes()
     mFullscreenQuads.vertexBuffer->UnmapMemory();
 
     mFullscreenQuads.vertexBinding.AppendAttribute({"POSITION", 0, grfx::FORMAT_R32G32B32_FLOAT, 0, PPX_APPEND_OFFSET_ALIGNED, grfx::VERTEX_INPUT_RATE_VERTEX});
+    mFullscreenQuads.vertexBinding.AppendAttribute({"TEXCOORD", 1, grfx::FORMAT_R32G32_FLOAT, 0, PPX_APPEND_OFFSET_ALIGNED, grfx::VERTEX_INPUT_RATE_VERTEX});
 }
 
 void GraphicsBenchmarkApp::SetupSkyBoxPipelines()

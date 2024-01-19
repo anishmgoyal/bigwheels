@@ -16,10 +16,12 @@
 
 Texture2D Tex0 : register(t0);
 RWStructuredBuffer<float> dataBuffer : register(u1);
+SamplerState pointsampler : register(s2);
 
 float4 psmain(VSOutputPos input) : SV_TARGET
 {
-    float4 c = Tex0.Load(uint3(input.position.x, input.position.y, 0));
+    //float4 c = Tex0.Load(uint3(input.position.x, input.position.y, 0));
+    float4 c = Tex0.SampleLevel(pointsampler, input.texcoord, 0);
     if (!any(c))
         dataBuffer[0] = c.r;
     return c;
