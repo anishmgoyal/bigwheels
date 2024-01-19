@@ -227,6 +227,7 @@ void GraphicsBenchmarkApp::Setup()
         createInfo.sampler                        = 5 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for blit
         createInfo.sampledImage                   = 6 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for quads, 1 for blit
         createInfo.uniformBuffer                  = 2 * GetNumFramesInFlight(); // 1 for skybox, 1 for spheres
+        createInfo.structuredBuffer               = 1;                          // 1 quad dummy
 
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorPool(&createInfo, &mDescriptorPool));
     }
@@ -478,10 +479,22 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture, options));
     }
 
+    // dummy buffers
+    {
+        grfx::BufferCreateInfo bufferCreateInfo             = {};
+        bufferCreateInfo.size                               = PPX_MINIMUM_STRUCTURED_BUFFER_SIZE;
+        bufferCreateInfo.structuredElementStride            = static_cast<uint32_t>(sizeof(float));
+        bufferCreateInfo.usageFlags.bits.rwStructuredBuffer = true;
+        bufferCreateInfo.memoryUsage                        = grfx::MEMORY_USAGE_GPU_ONLY;
+        bufferCreateInfo.initialState                       = grfx::RESOURCE_STATE_GENERAL;
+        PPX_CHECKED_CALL(GetDevice()->CreateBuffer(&bufferCreateInfo, &mQuadsDummyBuffer));
+    }
+
     // Descriptor set layout for texture shader
     {
         grfx::DescriptorSetLayoutCreateInfo layoutCreateInfo = {};
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(1, grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER));
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mFullscreenQuads.descriptorSetLayout));
     }
 
@@ -546,6 +559,16 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
     for (size_t i = 0; i < n; i++) {
         grfx::DescriptorSetPtr pDescriptorSet = mFullscreenQuads.descriptorSets[i];
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE_REGISTER, 0, mQuadsTexture));
+
+        grfx::WriteDescriptor write  = {};
+        write.binding                = 1;
+        write.arrayIndex             = 0;
+        write.type                   = grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER;
+        write.bufferOffset           = 0;
+        write.bufferRange            = PPX_WHOLE_SIZE;
+        write.structuredElementCount = 1;
+        write.pBuffer                = mQuadsDummyBuffer;
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(1, &write));
     }
 }
 
@@ -745,7 +768,7 @@ Result GraphicsBenchmarkApp::CompilePipeline(const QuadPipelineKey& key)
     gpCreateInfo.frontFace                          = grfx::FRONT_FACE_CW;
     gpCreateInfo.depthReadEnable                    = false;
     gpCreateInfo.depthWriteEnable                   = false;
-    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE;
+    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_PREMULT_ALPHA;
     gpCreateInfo.outputState.renderTargetCount      = 1;
     gpCreateInfo.outputState.renderTargetFormats[0] = key.renderFormat;
     gpCreateInfo.outputState.depthStencilFormat     = grfx::FORMAT_UNDEFINED;

@@ -15,8 +15,12 @@
 #include "VsOutput.hlsli"
 
 Texture2D Tex0 : register(t0);
+RWStructuredBuffer<float> dataBuffer : register(u1);
 
 float4 psmain(VSOutputPos input) : SV_TARGET
 {
-    return Tex0.Load(uint3(input.position.x, input.position.y, /* mipmap */ 0));
+    float4 c = Tex0.Load(uint3(input.position.x, input.position.y, 0));
+    if (!any(c))
+        dataBuffer[0] = c.r;
+    return c;
 }

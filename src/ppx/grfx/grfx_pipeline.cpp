@@ -85,14 +85,14 @@ grfx::BlendAttachmentState BlendAttachmentState::BlendModeUnder()
 grfx::BlendAttachmentState BlendAttachmentState::BlendModePremultAlpha()
 {
     grfx::BlendAttachmentState state = {};
-    state.blendEnable                = true;
+    state.blendEnable                = false;
     state.srcColorBlendFactor        = grfx::BLEND_FACTOR_ONE;
-    state.dstColorBlendFactor        = grfx::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    state.dstColorBlendFactor        = grfx::BLEND_FACTOR_ONE;
     state.colorBlendOp               = grfx::BLEND_OP_ADD;
     state.srcAlphaBlendFactor        = grfx::BLEND_FACTOR_ONE;
-    state.dstAlphaBlendFactor        = grfx::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    state.dstAlphaBlendFactor        = grfx::BLEND_FACTOR_ONE;
     state.alphaBlendOp               = grfx::BLEND_OP_ADD;
-    state.colorWriteMask             = grfx::ColorComponentFlags::RGBA();
+    state.colorWriteMask             = ColorComponentFlags(0);
 
     return state;
 }
@@ -152,6 +152,7 @@ void FillOutGraphicsPipelineCreateInfo(
     {
         pDstCreateInfo->colorBlendState.blendAttachmentCount = pSrcCreateInfo->outputState.renderTargetCount;
         for (uint32_t i = 0; i < pDstCreateInfo->colorBlendState.blendAttachmentCount; ++i) {
+            pDstCreateInfo->colorBlendState.blendAttachments[i].colorWriteMask = grfx::ColorComponentFlags::RGBA();
             switch (pSrcCreateInfo->blendModes[i]) {
                 default: break;
 
@@ -175,7 +176,6 @@ void FillOutGraphicsPipelineCreateInfo(
                     pDstCreateInfo->colorBlendState.blendAttachments[i] = grfx::BlendAttachmentState::BlendModePremultAlpha();
                 } break;
             }
-            pDstCreateInfo->colorBlendState.blendAttachments[i].colorWriteMask = grfx::ColorComponentFlags::RGBA();
         }
     }
 
