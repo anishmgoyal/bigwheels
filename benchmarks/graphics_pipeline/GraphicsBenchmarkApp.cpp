@@ -36,8 +36,12 @@ static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLER_REGISTER       = 7;
 
 static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER = 0;
 
-static constexpr size_t QUADS_DUMMY_BUFFER_REGISTER  = 1;
-static constexpr size_t QUADS_POINT_SAMPLER_REGISTER = 2;
+static constexpr size_t QUADS_DUMMY_BUFFER_REGISTER   = 1;
+static constexpr size_t QUADS_POINT_SAMPLER_REGISTER  = 2;
+static constexpr size_t QUADS_SAMPLED_IMAGE1_REGISTER = 3;
+static constexpr size_t QUADS_SAMPLED_IMAGE2_REGISTER = 4;
+static constexpr size_t QUADS_SAMPLED_IMAGE3_REGISTER = 5;
+static constexpr size_t QUADS_SAMPLED_IMAGE4_REGISTER = 6;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -367,7 +371,7 @@ void GraphicsBenchmarkApp::UpdateMetrics()
             {
                 const auto               texelSize     = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
                 const float              dataReadInGb  = (static_cast<float>(std::min(mQuadsTexture->GetWidth(), width)) * static_cast<float>(std::min(mQuadsTexture->GetHeight(), height)) * texelSize * quadCount) / (1024.f * 1024.f * 1024.f);
-                const float              readBandwidth = dataReadInGb / gpuWorkDurationInSec;
+                const float              readBandwidth = 5.f * dataReadInGb / gpuWorkDurationInSec;
                 ppx::metrics::MetricData data          = {ppx::metrics::MetricType::GAUGE};
                 data.gauge.seconds                     = GetElapsedSeconds();
                 data.gauge.value                       = readBandwidth;
@@ -489,6 +493,10 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         // Large resolution image
         grfx_util::TextureOptions options = grfx_util::TextureOptions().MipLevelCount(1);
         PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture, options));
+        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture1, options));
+        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture2, options));
+        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture3, options));
+        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture4, options));
     }
 
     // dummy buffers
@@ -508,6 +516,10 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_DUMMY_BUFFER_REGISTER, grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_POINT_SAMPLER_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLER));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE1_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE2_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE3_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE4_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mFullscreenQuads.descriptorSetLayout));
     }
 
@@ -584,6 +596,10 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
         PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(QUADS_DUMMY_BUFFER_REGISTER, &write));
 
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampler(QUADS_POINT_SAMPLER_REGISTER, 0, mPointSampler));
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE1_REGISTER, 0, mQuadsTexture1));
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE2_REGISTER, 0, mQuadsTexture2));
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE3_REGISTER, 0, mQuadsTexture3));
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE4_REGISTER, 0, mQuadsTexture4));
     }
 }
 

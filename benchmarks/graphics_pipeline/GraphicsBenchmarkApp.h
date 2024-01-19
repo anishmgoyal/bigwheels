@@ -472,6 +472,10 @@ private:
     Entity2D                                                             mFullscreenQuads;
     grfx::ShaderModulePtr                                                mVSQuads;
     grfx::TexturePtr                                                     mQuadsTexture;
+    grfx::TexturePtr                                                     mQuadsTexture1;
+    grfx::TexturePtr                                                     mQuadsTexture2;
+    grfx::TexturePtr                                                     mQuadsTexture3;
+    grfx::TexturePtr                                                     mQuadsTexture4;
     grfx::BufferPtr                                                      mQuadsDummyBuffer;
     QuadPipelineMap                                                      mQuadsPipelines;
     std::array<grfx::PipelineInterfacePtr, kFullscreenQuadsTypes.size()> mQuadsPipelineInterfaces;
