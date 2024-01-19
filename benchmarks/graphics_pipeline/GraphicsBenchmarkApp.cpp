@@ -43,6 +43,8 @@ static constexpr size_t QUADS_SAMPLED_IMAGE2_REGISTER = 4;
 static constexpr size_t QUADS_SAMPLED_IMAGE3_REGISTER = 5;
 static constexpr size_t QUADS_SAMPLED_IMAGE4_REGISTER = 6;
 
+static constexpr float TEST_IMAGE_COUNT = 2.f;
+
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
 #elif defined(USE_VK)
@@ -371,7 +373,7 @@ void GraphicsBenchmarkApp::UpdateMetrics()
             {
                 const auto               texelSize     = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
                 const float              dataReadInGb  = (static_cast<float>(std::min(mQuadsTexture->GetWidth(), width)) * static_cast<float>(std::min(mQuadsTexture->GetHeight(), height)) * texelSize * quadCount) / (1024.f * 1024.f * 1024.f);
-                const float              readBandwidth = 5.f * dataReadInGb / gpuWorkDurationInSec;
+                const float              readBandwidth = TEST_IMAGE_COUNT * dataReadInGb / gpuWorkDurationInSec;
                 ppx::metrics::MetricData data          = {ppx::metrics::MetricType::GAUGE};
                 data.gauge.seconds                     = GetElapsedSeconds();
                 data.gauge.value                       = readBandwidth;
