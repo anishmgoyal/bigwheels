@@ -339,6 +339,36 @@ Result Sampler::CreateApiObjects(const grfx::SamplerCreateInfo* pCreateInfo)
     vkci.borderColor             = ToVkBorderColor(pCreateInfo->borderColor);
     vkci.unnormalizedCoordinates = VK_FALSE;
 
+    VkSamplerYcbcrConversionInfo ycbcr_info;
+    if (pCreateInfo->isYuv) {
+        VkSamplerYcbcrConversionCreateInfo conversion_info = {};
+        conversion_info.sType                              = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO;
+        conversion_info.pNext                              = NULL;
+        conversion_info.format                             = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+        conversion_info.ycbcrModel                         = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
+        conversion_info.ycbcrRange                         = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
+        conversion_info.components.r                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+        conversion_info.components.g                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+        conversion_info.components.b                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+        conversion_info.components.a                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+        conversion_info.xChromaOffset                      = VK_CHROMA_LOCATION_MIDPOINT;
+        conversion_info.yChromaOffset                      = VK_CHROMA_LOCATION_MIDPOINT;
+        conversion_info.chromaFilter                       = VK_FILTER_LINEAR;
+        conversion_info.forceExplicitReconstruction        = VK_FALSE;
+        VkResult vkres                                     = vkCreateSamplerYcbcrConversion(ToApi(GetDevice())->GetVkDevice(), &conversion_info, NULL, &mYcbcrSamplerConversion);
+
+        if (vkres != VK_SUCCESS) {
+            PPX_ASSERT_MSG(false, "vkCreateSamplerYcbcrConversion() failed: " << ToString(vkres));
+            return ppx::ERROR_API_FAILURE;
+        }
+
+        ycbcr_info.sType      = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO;
+        ycbcr_info.pNext      = NULL;
+        ycbcr_info.conversion = mYcbcrSamplerConversion;
+
+        vkci.pNext = &ycbcr_info;
+    }
+
     VkResult vkres = vkCreateSampler(
         ToApi(GetDevice())->GetVkDevice(),
         &vkci,
@@ -354,6 +384,10 @@ Result Sampler::CreateApiObjects(const grfx::SamplerCreateInfo* pCreateInfo)
 
 void Sampler::DestroyApiObjects()
 {
+    if (mYcbcrSamplerConversion) {
+        vkDestroySamplerYcbcrConversion(ToApi(GetDevice())->GetVkDevice(), mYcbcrSamplerConversion, nullptr);
+    }
+
     if (mSampler) {
         vkDestroySampler(ToApi(GetDevice())->GetVkDevice(), mSampler, nullptr);
         mSampler.Reset();

@@ -158,6 +158,7 @@ struct SamplerCreateInfo
     float                    maxLod           = 1.0f;
     grfx::BorderColor        borderColor      = grfx::BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
     grfx::Ownership          ownership        = grfx::OWNERSHIP_REFERENCE;
+    bool                     isYuv            = false;
 };
 
 //! @class Sampler

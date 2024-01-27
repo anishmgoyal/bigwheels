@@ -239,10 +239,27 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.maxLod                  = FLT_MAX;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mPointSampler));
     }
+    {
+        grfx::SamplerCreateInfo samplerCreateInfo = {};
+        samplerCreateInfo.magFilter               = grfx::FILTER_LINEAR;
+        samplerCreateInfo.minFilter               = grfx::FILTER_LINEAR;
+        samplerCreateInfo.mipmapMode              = grfx::SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerCreateInfo.addressModeU            = grfx::SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.addressModeV            = grfx::SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.addressModeW            = grfx::SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.mipLodBias              = 0.0f;
+        samplerCreateInfo.anisotropyEnable        = false;
+        samplerCreateInfo.compareEnable           = false;
+        samplerCreateInfo.minLod                  = 0.0f;
+        samplerCreateInfo.maxLod                  = 1.0f;
+        samplerCreateInfo.borderColor             = grfx::BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+        samplerCreateInfo.maxLod                  = 1.0f;
+        PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mYuvSampler));
+    }
     // Descriptor Pool
     {
         grfx::DescriptorPoolCreateInfo createInfo = {};
-        createInfo.sampler                        = 6 * GetNumFramesInFlight();  // 1 for skybox, 3 for spheres, 1 for blit
+        createInfo.sampler                        = 20 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for blit
         createInfo.sampledImage                   = 20 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for quads, 1 for blit
         createInfo.uniformBuffer                  = 2 * GetNumFramesInFlight();  // 1 for skybox, 1 for spheres
         createInfo.structuredBuffer               = 1;                           // 1 quad dummy
