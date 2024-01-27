@@ -196,7 +196,7 @@ void GraphicsBenchmarkApp::Config(ppx::ApplicationSettings& settings)
 #if defined(PPX_BUILD_XR)
     // XR specific settings
     settings.grfx.pacedFrameRate   = 0;
-    settings.xr.enable             = true; // Change this to true to enable the XR mode
+    settings.xr.enable             = false; // Change this to true to enable the XR mode
     settings.xr.enableDebugCapture = false;
 #endif
     settings.standardKnobsDefaultValue.enableMetrics        = true;
@@ -514,6 +514,12 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture2, options));
         PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture3, options));
         PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture4, options));
+
+        // yuv texture
+        // PT texture is 6304x3840 = 3152 x 2 x 3840
+        const uint32_t kYuvWidth  = 3152;
+        const uint32_t kYuvHeight = 3840;
+        PPX_CHECKED_CALL(CreateYUVTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(kYUVTextureFile), kYuvWidth, kYuvHeight, &mYUVTexture0, options));
     }
 
     // dummy buffers
@@ -817,7 +823,7 @@ Result GraphicsBenchmarkApp::CompilePipeline(const QuadPipelineKey& key)
     gpCreateInfo.frontFace                          = grfx::FRONT_FACE_CW;
     gpCreateInfo.depthReadEnable                    = false;
     gpCreateInfo.depthWriteEnable                   = false;
-    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_OUTPUT_DISABLED;
+    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE; // grfx::BLEND_MODE_OUTPUT_DISABLED;
     gpCreateInfo.outputState.renderTargetCount      = 1;
     gpCreateInfo.outputState.renderTargetFormats[0] = key.renderFormat;
     gpCreateInfo.outputState.depthStencilFormat     = grfx::FORMAT_UNDEFINED;

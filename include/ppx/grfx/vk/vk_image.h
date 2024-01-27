@@ -46,6 +46,7 @@ private:
     VmaAllocationInfo  mAllocationInfo = {};
     VkFormat           mVkFormat       = VK_FORMAT_UNDEFINED;
     VkImageAspectFlags mImageAspect    = ppx::InvalidValue<VkImageAspectFlags>();
+    VkDeviceMemory     mMemory         = VK_NULL_HANDLE;
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -143,7 +144,8 @@ protected:
     virtual void   DestroyApiObjects() override;
 
 private:
-    VkImageViewPtr mImageView;
+    VkImageViewPtr           mImageView;
+    VkSamplerYcbcrConversion mYcbcrSamplerConversion = VK_NULL_HANDLE;
 };
 
 // -------------------------------------------------------------------------------------------------

@@ -155,27 +155,29 @@ Result CopyBitmapToImage(
     }
 
     // Copy info
-    grfx::BufferToImageCopyInfo copyInfo = {};
-    copyInfo.srcBuffer.imageWidth        = pBitmap->GetWidth();
-    copyInfo.srcBuffer.imageHeight       = pBitmap->GetHeight();
-    copyInfo.srcBuffer.imageRowStride    = stagingBufferRowStride;
-    copyInfo.srcBuffer.footprintOffset   = 0;
-    copyInfo.srcBuffer.footprintWidth    = pBitmap->GetWidth();
-    copyInfo.srcBuffer.footprintHeight   = pBitmap->GetHeight();
-    copyInfo.srcBuffer.footprintDepth    = 1;
-    copyInfo.dstImage.mipLevel           = mipLevel;
-    copyInfo.dstImage.arrayLayer         = arrayLayer;
-    copyInfo.dstImage.arrayLayerCount    = 1;
-    copyInfo.dstImage.x                  = 0;
-    copyInfo.dstImage.y                  = 0;
-    copyInfo.dstImage.z                  = 0;
-    copyInfo.dstImage.width              = pBitmap->GetWidth();
-    copyInfo.dstImage.height             = pBitmap->GetHeight();
-    copyInfo.dstImage.depth              = 1;
+    std::vector<grfx::BufferToImageCopyInfo> copyInfos;
+    grfx::BufferToImageCopyInfo              copyInfo = {};
+    copyInfo.srcBuffer.imageWidth                     = pBitmap->GetWidth();
+    copyInfo.srcBuffer.imageHeight                    = pBitmap->GetHeight();
+    copyInfo.srcBuffer.imageRowStride                 = stagingBufferRowStride;
+    copyInfo.srcBuffer.footprintOffset                = 0;
+    copyInfo.srcBuffer.footprintWidth                 = pBitmap->GetWidth();
+    copyInfo.srcBuffer.footprintHeight                = pBitmap->GetHeight();
+    copyInfo.srcBuffer.footprintDepth                 = 1;
+    copyInfo.dstImage.mipLevel                        = mipLevel;
+    copyInfo.dstImage.arrayLayer                      = arrayLayer;
+    copyInfo.dstImage.arrayLayerCount                 = 1;
+    copyInfo.dstImage.x                               = 0;
+    copyInfo.dstImage.y                               = 0;
+    copyInfo.dstImage.z                               = 0;
+    copyInfo.dstImage.width                           = pBitmap->GetWidth();
+    copyInfo.dstImage.height                          = pBitmap->GetHeight();
+    copyInfo.dstImage.depth                           = 1;
+    copyInfos.push_back(copyInfo);
 
     // Copy to GPU image
     ppxres = pQueue->CopyBufferToImage(
-        std::vector<grfx::BufferToImageCopyInfo>{copyInfo},
+        copyInfos,
         stagingBuffer,
         pImage,
         mipLevel,
@@ -1062,6 +1064,196 @@ Result CreateTextureFromFile(
     return CreateTextureFromBitmap(pQueue, &bitmap, ppTexture, options);
 }
 
+// TODO(wangra)
+//
+// // -------------------------------------------------------------------------------------------------
+
+Result CreateYUVTextureFromFile(
+    grfx::Queue*                 pQueue,
+    const std::filesystem::path& path,
+    uint32_t                     width,
+    uint32_t                     height,
+    grfx::Texture**              ppTexture,
+    const TextureOptions&        options)
+{
+    PPX_ASSERT_NULL_ARG(pQueue);
+    PPX_ASSERT_NULL_ARG(ppTexture);
+
+    ScopedTimer timer("YUV Texture creation from image file '" + path.string() + "'");
+
+    // Open file
+    ppx::fs::File file;
+    if (!file.Open(path)) {
+        PPX_ASSERT_MSG(false, "Cannot open the file!");
+        return ppx::ERROR_FAILED;
+    }
+    const size_t      size = file.GetLength();
+    std::vector<char> buffer(size);
+    const size_t      readSize = file.Read(buffer.data(), size);
+    if (readSize != size) {
+        PPX_ASSERT_MSG(false, "Cannot read the content of the file!");
+        return ppx::ERROR_FAILED;
+    }
+
+    return CreateYUVTextureFromBuffer(pQueue, buffer.data(), size, width, height, ppTexture, options);
+}
+
+// -------------------------------------------------------------------------------------------------
+Result CopyBufferYUVToImage(
+    grfx::Queue*        pQueue,
+    const char*         pBufferData,
+    size_t              bufferSize,
+    grfx::Image*        pImage,
+    grfx::ResourceState stateBefore,
+    grfx::ResourceState stateAfter)
+{
+    PPX_ASSERT_NULL_ARG(pQueue);
+    PPX_ASSERT_NULL_ARG(pImage);
+
+    Result ppxres = ppx::ERROR_FAILED;
+
+    // Scoped destroy
+    grfx::ScopeDestroyer SCOPED_DESTROYER(pQueue->GetDevice());
+
+    // Create staging buffer
+    grfx::BufferPtr stagingBuffer;
+    {
+        grfx::BufferCreateInfo ci      = {};
+        ci.size                        = bufferSize;
+        ci.usageFlags.bits.transferSrc = true;
+        ci.memoryUsage                 = grfx::MEMORY_USAGE_CPU_TO_GPU;
+
+        ppxres = pQueue->GetDevice()->CreateBuffer(&ci, &stagingBuffer);
+        if (Failed(ppxres)) {
+            return ppxres;
+        }
+        SCOPED_DESTROYER.AddObject(stagingBuffer);
+
+        // Map and copy to staging buffer
+        void* pBufferAddress = nullptr;
+        ppxres               = stagingBuffer->MapMemory(0, &pBufferAddress);
+        if (Failed(ppxres)) {
+            return ppxres;
+        }
+        const char* pSrc = pBufferData;
+        char*       pDst = static_cast<char*>(pBufferAddress);
+        memcpy(pDst, pSrc, bufferSize);
+        stagingBuffer->UnmapMemory();
+    }
+
+    // Copy info
+    std::vector<grfx::BufferToImageCopyInfo> copyInfos;
+
+    const bool isYUV = (pImage->GetFormat() == grfx::FORMAT_G8_B8R8_2PLANE_420_UNORM);
+    PPX_ASSERT_MSG(isYUV, "This is only used by yuv format for now!");
+
+    for (size_t plane = 0; plane < 2; ++plane) {
+        grfx::BufferToImageCopyInfo copyInfo = {};
+        copyInfo.srcBuffer.imageWidth        = 0;
+        copyInfo.srcBuffer.imageHeight       = 0;
+        copyInfo.srcBuffer.imageRowStride    = 0;
+        copyInfo.srcBuffer.footprintOffset   = (plane == 0) ? 0 : ((bufferSize / 3) * 2); // TODO(wangra): there is an alignment
+        copyInfo.srcBuffer.footprintWidth    = 0;
+        copyInfo.srcBuffer.footprintHeight   = 0;
+        copyInfo.srcBuffer.footprintDepth    = 1;
+        copyInfo.dstImage.mipLevel           = 0;
+        copyInfo.dstImage.arrayLayer         = 0;
+        copyInfo.dstImage.arrayLayerCount    = 1;
+        copyInfo.dstImage.x                  = 0;
+        copyInfo.dstImage.y                  = 0;
+        copyInfo.dstImage.z                  = 0;
+        copyInfo.dstImage.width              = pImage->GetWidth() / (plane + 1);
+        copyInfo.dstImage.height             = pImage->GetHeight() / (plane + 1);
+        copyInfo.dstImage.depth              = 1;
+        copyInfos.push_back(copyInfo);
+    }
+
+    // Copy to GPU image
+    ppxres = pQueue->CopyBufferToImage(
+        copyInfos,
+        stagingBuffer,
+        pImage,
+        1,
+        1,
+        1,
+        1,
+        stateBefore,
+        stateAfter);
+    if (Failed(ppxres)) {
+        return ppxres;
+    }
+
+    return ppx::SUCCESS;
+}
+// -------------------------------------------------------------------------------------------------
+Result CreateYUVTextureFromBuffer(
+    grfx::Queue*          pQueue,
+    const char*           pBufferData,
+    size_t                bufferSize,
+    uint32_t              width,
+    uint32_t              height,
+    grfx::Texture**       ppTexture,
+    const TextureOptions& options)
+{
+    PPX_ASSERT_NULL_ARG(pQueue);
+    PPX_ASSERT_NULL_ARG(ppTexture);
+
+    Result ppxres = ppx::ERROR_FAILED;
+
+    // Scoped destroy
+    grfx::ScopeDestroyer SCOPED_DESTROYER(pQueue->GetDevice());
+
+    // Create target texture
+    grfx::TexturePtr targetTexture;
+    {
+        grfx::TextureCreateInfo ci     = {};
+        ci.pImage                      = nullptr;
+        ci.imageType                   = grfx::IMAGE_TYPE_2D;
+        ci.width                       = width;
+        ci.height                      = height;
+        ci.depth                       = 1;
+        ci.imageFormat                 = grfx::FORMAT_G8_B8R8_2PLANE_420_UNORM;
+        ci.sampleCount                 = grfx::SAMPLE_COUNT_1;
+        ci.mipLevelCount               = 1;
+        ci.arrayLayerCount             = 1;
+        ci.usageFlags.bits.transferDst = true;
+        ci.usageFlags.bits.sampled     = true;
+        ci.memoryUsage                 = grfx::MEMORY_USAGE_GPU_ONLY;
+        ci.initialState                = options.mInitialState;
+        ci.RTVClearValue               = {{0, 0, 0, 0}};
+        ci.DSVClearValue               = {1.0f, 0xFF};
+        ci.sampledImageViewType        = grfx::IMAGE_VIEW_TYPE_UNDEFINED;
+        ci.sampledImageViewFormat      = grfx::FORMAT_UNDEFINED;
+        ci.renderTargetViewFormat      = grfx::FORMAT_UNDEFINED;
+        ci.depthStencilViewFormat      = grfx::FORMAT_UNDEFINED;
+        ci.storageImageViewFormat      = grfx::FORMAT_UNDEFINED;
+        ci.ownership                   = grfx::OWNERSHIP_REFERENCE;
+
+        ci.usageFlags.flags |= options.mAdditionalUsage;
+
+        ppxres = pQueue->GetDevice()->CreateTexture(&ci, &targetTexture);
+        if (Failed(ppxres)) {
+            return ppxres;
+        }
+        SCOPED_DESTROYER.AddObject(targetTexture);
+    }
+
+    ppxres = CopyBufferYUVToImage(
+        pQueue,
+        pBufferData,
+        bufferSize,
+        targetTexture->GetImage(),
+        options.mInitialState,
+        options.mInitialState);
+
+    // Change ownership to reference so object doesn't get destroyed
+    targetTexture->SetOwnership(grfx::OWNERSHIP_REFERENCE);
+
+    // Assign output
+    *ppTexture = targetTexture;
+
+    return ppx::SUCCESS;
+}
 // -------------------------------------------------------------------------------------------------
 
 struct SubImage

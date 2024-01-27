@@ -560,7 +560,6 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     std::vector<const char*> extensions = GetCStrings(mExtensions);
 
     VkDeviceCreateInfo vkci      = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
-    vkci.pNext                   = extensionStructs.empty() ? nullptr : extensionStructs[0];
     vkci.flags                   = 0;
     vkci.queueCreateInfoCount    = CountU32(queueCreateInfos);
     vkci.pQueueCreateInfos       = DataPtr(queueCreateInfos);
@@ -569,6 +568,14 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     vkci.enabledExtensionCount   = CountU32(extensions);
     vkci.ppEnabledExtensionNames = DataPtr(extensions);
     vkci.pEnabledFeatures        = &mDeviceFeatures;
+
+    VkPhysicalDeviceSamplerYcbcrConversionFeatures yuvFeature{};
+    yuvFeature.sType                  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES;
+    yuvFeature.samplerYcbcrConversion = true;
+    vkci.pNext                        = &yuvFeature;
+    if (!extensionStructs.empty()) {
+        yuvFeature.pNext = extensionStructs[0];
+    }
 
     // Log layers and extensions
     {

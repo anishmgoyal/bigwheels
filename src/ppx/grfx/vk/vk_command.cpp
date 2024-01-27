@@ -887,12 +887,14 @@ void CommandBuffer::CopyBufferToImage(
     PPX_ASSERT_NULL_ARG(pDstImage);
 
     std::vector<VkBufferImageCopy> regions(pCopyInfos.size());
+    const bool                     isYUV         = (pDstImage->GetFormat() == FORMAT_G8_B8R8_2PLANE_420_UNORM);
+    VkImageAspectFlagBits          aspectMask[2] = {VK_IMAGE_ASPECT_PLANE_0_BIT, VK_IMAGE_ASPECT_PLANE_1_BIT};
 
     for (size_t i = 0; i < pCopyInfos.size(); i++) {
         regions[i].bufferOffset                    = static_cast<VkDeviceSize>(pCopyInfos[i].srcBuffer.footprintOffset);
         regions[i].bufferRowLength                 = pCopyInfos[i].srcBuffer.imageWidth;
         regions[i].bufferImageHeight               = pCopyInfos[i].srcBuffer.imageHeight;
-        regions[i].imageSubresource.aspectMask     = ToApi(pDstImage)->GetVkImageAspectFlags();
+        regions[i].imageSubresource.aspectMask     = isYUV ? aspectMask[i] : ToApi(pDstImage)->GetVkImageAspectFlags();
         regions[i].imageSubresource.mipLevel       = pCopyInfos[i].dstImage.mipLevel;
         regions[i].imageSubresource.baseArrayLayer = pCopyInfos[i].dstImage.arrayLayer;
         regions[i].imageSubresource.layerCount     = pCopyInfos[i].dstImage.arrayLayerCount;
@@ -1007,14 +1009,14 @@ void CommandBuffer::CopyImageToImage(
 
     VkImageCopy region = {};
     region.srcOffset   = {
-        static_cast<int32_t>(pCopyInfo->srcImage.offset.x),
-        static_cast<int32_t>(pCopyInfo->srcImage.offset.y),
-        static_cast<int32_t>(pCopyInfo->srcImage.offset.z)};
+          static_cast<int32_t>(pCopyInfo->srcImage.offset.x),
+          static_cast<int32_t>(pCopyInfo->srcImage.offset.y),
+          static_cast<int32_t>(pCopyInfo->srcImage.offset.z)};
     region.srcSubresource = srcSubresource;
     region.dstOffset      = {
-        static_cast<int32_t>(pCopyInfo->dstImage.offset.x),
-        static_cast<int32_t>(pCopyInfo->dstImage.offset.y),
-        static_cast<int32_t>(pCopyInfo->dstImage.offset.z)};
+             static_cast<int32_t>(pCopyInfo->dstImage.offset.x),
+             static_cast<int32_t>(pCopyInfo->dstImage.offset.y),
+             static_cast<int32_t>(pCopyInfo->dstImage.offset.z)};
     region.dstSubresource = dstSubresource;
     region.extent         = {0, 1, 1};
     region.extent.width   = pCopyInfo->extent.x;

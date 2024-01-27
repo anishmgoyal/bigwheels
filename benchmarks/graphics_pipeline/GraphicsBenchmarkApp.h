@@ -40,6 +40,7 @@ static constexpr uint32_t kDebugColorPushConstantCount = sizeof(float4) / sizeof
 
 static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
+static constexpr const char* kYUVTextureFile  = "benchmarks/textures/out.raw";
 
 enum class DebugView
 {
@@ -476,6 +477,7 @@ private:
     grfx::TexturePtr                                                     mQuadsTexture2;
     grfx::TexturePtr                                                     mQuadsTexture3;
     grfx::TexturePtr                                                     mQuadsTexture4;
+    grfx::TexturePtr                                                     mYUVTexture0;
     grfx::BufferPtr                                                      mQuadsDummyBuffer;
     QuadPipelineMap                                                      mQuadsPipelines;
     std::array<grfx::PipelineInterfacePtr, kFullscreenQuadsTypes.size()> mQuadsPipelineInterfaces;

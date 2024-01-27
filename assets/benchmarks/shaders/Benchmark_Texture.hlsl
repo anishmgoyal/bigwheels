@@ -32,5 +32,5 @@ float4 psmain(VSOutputPos input) : SV_TARGET
     float4 c4 = Tex4.SampleLevel(pointsampler, input.texcoord, 0);
     if (!any(c0))
         dataBuffer[0] = c0.r;
-    return c0 + c1/* + c2 + c3 + c4*/;
+    return (c0 + c1/* + c2 + c3 + c4*/)/2.f;
 }

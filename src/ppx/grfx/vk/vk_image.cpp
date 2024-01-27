@@ -27,6 +27,7 @@ namespace vk {
 // -------------------------------------------------------------------------------------------------
 Result Image::CreateApiObjects(const grfx::ImageCreateInfo* pCreateInfo)
 {
+    bool yuvFormat = false;
     if (IsNull(pCreateInfo->pApiObject)) {
         // Create image
         {
@@ -39,6 +40,11 @@ Result Image::CreateApiObjects(const grfx::ImageCreateInfo* pCreateInfo)
             VkImageCreateFlags createFlags = 0;
             if (pCreateInfo->type == grfx::IMAGE_TYPE_CUBE) {
                 createFlags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+            }
+
+            if (pCreateInfo->format == FORMAT_G8_B8R8_2PLANE_420_UNORM) {
+                yuvFormat = true;
+                createFlags |= VK_IMAGE_CREATE_DISJOINT_BIT;
             }
 
             auto queueIndices = ToApi(GetDevice())->GetAllQueueFamilyIndices();
@@ -74,50 +80,138 @@ Result Image::CreateApiObjects(const grfx::ImageCreateInfo* pCreateInfo)
             }
         }
 
-        // Allocate memory
-        {
-            VmaMemoryUsage memoryUsage = ToVmaMemoryUsage(pCreateInfo->memoryUsage);
-            if (memoryUsage == VMA_MEMORY_USAGE_UNKNOWN) {
-                PPX_ASSERT_MSG(false, "unknown memory usage");
-                return ppx::ERROR_API_FAILURE;
+        if (!yuvFormat) {
+            // Allocate memory
+            {
+                VmaMemoryUsage memoryUsage = ToVmaMemoryUsage(pCreateInfo->memoryUsage);
+                if (memoryUsage == VMA_MEMORY_USAGE_UNKNOWN) {
+                    PPX_ASSERT_MSG(false, "unknown memory usage");
+                    return ppx::ERROR_API_FAILURE;
+                }
+
+                VmaAllocationCreateFlags createFlags = 0;
+
+                if ((memoryUsage == VMA_MEMORY_USAGE_CPU_ONLY) || (memoryUsage == VMA_MEMORY_USAGE_CPU_TO_GPU)) {
+                    createFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+                }
+
+                VmaAllocationCreateInfo vma_alloc_ci = {};
+                vma_alloc_ci.flags                   = createFlags;
+                vma_alloc_ci.usage                   = memoryUsage;
+                vma_alloc_ci.requiredFlags           = 0;
+                vma_alloc_ci.preferredFlags          = 0;
+                vma_alloc_ci.memoryTypeBits          = 0;
+                vma_alloc_ci.pool                    = VK_NULL_HANDLE;
+                vma_alloc_ci.pUserData               = nullptr;
+
+                VkResult vkres = vmaAllocateMemoryForImage(
+                    ToApi(GetDevice())->GetVmaAllocator(),
+                    mImage,
+                    &vma_alloc_ci,
+                    &mAllocation,
+                    &mAllocationInfo);
+                if (vkres != VK_SUCCESS) {
+                    PPX_ASSERT_MSG(false, "vmaAllocateMemoryForImage failed: " << ToString(vkres));
+                    return ppx::ERROR_API_FAILURE;
+                }
             }
 
-            VmaAllocationCreateFlags createFlags = 0;
-
-            if ((memoryUsage == VMA_MEMORY_USAGE_CPU_ONLY) || (memoryUsage == VMA_MEMORY_USAGE_CPU_TO_GPU)) {
-                createFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-            }
-
-            VmaAllocationCreateInfo vma_alloc_ci = {};
-            vma_alloc_ci.flags                   = createFlags;
-            vma_alloc_ci.usage                   = memoryUsage;
-            vma_alloc_ci.requiredFlags           = 0;
-            vma_alloc_ci.preferredFlags          = 0;
-            vma_alloc_ci.memoryTypeBits          = 0;
-            vma_alloc_ci.pool                    = VK_NULL_HANDLE;
-            vma_alloc_ci.pUserData               = nullptr;
-
-            VkResult vkres = vmaAllocateMemoryForImage(
-                ToApi(GetDevice())->GetVmaAllocator(),
-                mImage,
-                &vma_alloc_ci,
-                &mAllocation,
-                &mAllocationInfo);
-            if (vkres != VK_SUCCESS) {
-                PPX_ASSERT_MSG(false, "vmaAllocateMemoryForImage failed: " << ToString(vkres));
-                return ppx::ERROR_API_FAILURE;
+            // Bind memory
+            {
+                VkResult vkres = vmaBindImageMemory(
+                    ToApi(GetDevice())->GetVmaAllocator(),
+                    mAllocation,
+                    mImage);
+                if (vkres != VK_SUCCESS) {
+                    PPX_ASSERT_MSG(false, "vmaBindImageMemory failed: " << ToString(vkres));
+                    return ppx::ERROR_API_FAILURE;
+                }
             }
         }
+        else {
+            VkDeviceSize memory_offset_plane0, memory_offset_plane1;
+            // Allocate memory
+            {
+                // Get memory requirements for each plane and combine
+                // Plane 0
+                VkImagePlaneMemoryRequirementsInfo image_plane_info = {};
+                image_plane_info.sType                              = VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO;
+                image_plane_info.pNext                              = NULL;
+                image_plane_info.planeAspect                        = VK_IMAGE_ASPECT_PLANE_0_BIT;
+                VkImageMemoryRequirementsInfo2 image_info2          = {};
+                image_info2.sType                                   = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
+                image_info2.pNext                                   = &image_plane_info;
+                image_info2.image                                   = mImage;
+                /*VkImagePlaneMemoryRequirementsInfo memory_plane_requirements = {};
+                memory_plane_requirements.sType                              = VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO;
+                memory_plane_requirements.pNext                              = NULL;
+                memory_plane_requirements.planeAspect                        = VK_IMAGE_ASPECT_PLANE_0_BIT;*/
+                VkMemoryRequirements2 memory_requirements2 = {};
+                memory_requirements2.sType                 = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+                // memory_requirements2.pNext                                   = &memory_plane_requirements;
+                memory_requirements2.pNext = nullptr;
+                vkGetImageMemoryRequirements2(ToApi(GetDevice())->GetVkDevice(), &image_info2, &memory_requirements2);
+                VkDeviceSize image_size = memory_requirements2.memoryRequirements.size;
+                uint32_t     image_bits = memory_requirements2.memoryRequirements.memoryTypeBits;
 
-        // Bind memory
-        {
-            VkResult vkres = vmaBindImageMemory(
-                ToApi(GetDevice())->GetVmaAllocator(),
-                mAllocation,
-                mImage);
-            if (vkres != VK_SUCCESS) {
-                PPX_ASSERT_MSG(false, "vmaBindImageMemory failed: " << ToString(vkres));
-                return ppx::ERROR_API_FAILURE;
+                // Plane 1
+                image_plane_info.planeAspect = VK_IMAGE_ASPECT_PLANE_1_BIT;
+                // memory_plane_requirements.planeAspect = VK_IMAGE_ASPECT_PLANE_1_BIT;
+                vkGetImageMemoryRequirements2(ToApi(GetDevice())->GetVkDevice(), &image_info2, &memory_requirements2);
+                uint32_t image_alignment = memory_requirements2.memoryRequirements.alignment;
+
+                // Set offsets
+                memory_offset_plane0 = 0;
+                memory_offset_plane1 = RoundUp<uint32_t>(image_size, image_alignment);
+
+                image_size = memory_offset_plane1 + memory_requirements2.memoryRequirements.size;
+                image_bits = image_bits | memory_requirements2.memoryRequirements.memoryTypeBits;
+
+                // Allocate image memory
+                VkMemoryAllocateInfo allocate_info = {};
+                allocate_info.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+                allocate_info.allocationSize       = image_size;
+                allocate_info.memoryTypeIndex      = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT; // get_device_memory_type(image_bits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+                VkResult vkres = vkAllocateMemory(ToApi(GetDevice())->GetVkDevice(), &allocate_info, NULL, &mMemory);
+                if (vkres != VK_SUCCESS) {
+                    PPX_ASSERT_MSG(false, "vkAllocateMemory failed to allocate image memory: " << ToString(vkres));
+                    return ppx::ERROR_API_FAILURE;
+                }
+            }
+
+            // Bind memory
+            {
+                // Bind each image plane to memory
+                std::vector<VkBindImageMemoryInfo> bind_image_memory_infos(2);
+                // Plane 0
+                VkBindImagePlaneMemoryInfo bind_image_plane0_info    = {};
+                bind_image_plane0_info.sType                         = VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO;
+                bind_image_plane0_info.pNext                         = NULL;
+                bind_image_plane0_info.planeAspect                   = VK_IMAGE_ASPECT_PLANE_0_BIT;
+                VkBindImageMemoryInfo& bind_image_memory_plane0_info = bind_image_memory_infos[0];
+                bind_image_memory_plane0_info.sType                  = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
+                bind_image_memory_plane0_info.pNext                  = &bind_image_plane0_info;
+                bind_image_memory_plane0_info.image                  = mImage;
+                bind_image_memory_plane0_info.memory                 = mMemory;
+                bind_image_memory_plane0_info.memoryOffset           = memory_offset_plane0;
+                // Plane 1
+                VkBindImagePlaneMemoryInfo bind_image_plane1_info    = {};
+                bind_image_plane1_info.sType                         = VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO;
+                bind_image_plane1_info.pNext                         = NULL;
+                bind_image_plane1_info.planeAspect                   = VK_IMAGE_ASPECT_PLANE_1_BIT;
+                VkBindImageMemoryInfo& bind_image_memory_plane1_info = bind_image_memory_infos[1];
+                bind_image_memory_plane1_info.sType                  = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
+                bind_image_memory_plane1_info.pNext                  = &bind_image_plane1_info;
+                bind_image_memory_plane1_info.image                  = mImage;
+                bind_image_memory_plane1_info.memory                 = mMemory;
+                bind_image_memory_plane1_info.memoryOffset           = memory_offset_plane1;
+
+                VkResult vkres = vkBindImageMemory2(ToApi(GetDevice())->GetVkDevice(), bind_image_memory_infos.size(), bind_image_memory_infos.data());
+                if (vkres != VK_SUCCESS) {
+                    PPX_ASSERT_MSG(false, "vkBindImageMemory2 failed to bind image memory: " << ToString(vkres));
+                    return ppx::ERROR_API_FAILURE;
+                }
             }
         }
     }
@@ -178,6 +272,10 @@ void Image::DestroyApiObjects()
     // Don't destroy image unless we created it
     if (!IsNull(mCreateInfo.pApiObject)) {
         return;
+    }
+
+    if (mMemory) {
+        vkFreeMemory(ToApi(GetDevice())->GetVkDevice(), mMemory, nullptr);
     }
 
     if (mAllocation) {
@@ -375,6 +473,46 @@ Result SampledImageView::CreateApiObjects(const grfx::SampledImageViewCreateInfo
     vkci.subresourceRange.baseArrayLayer = pCreateInfo->arrayLayer;
     vkci.subresourceRange.layerCount     = pCreateInfo->arrayLayerCount;
 
+    VkSamplerYcbcrConversionInfo ycbcr_info;
+    if (pCreateInfo->format == grfx::FORMAT_G8_B8R8_2PLANE_420_UNORM) {
+        VkSamplerYcbcrConversionCreateInfo conversion_info = {};
+        conversion_info.sType                              = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO;
+        conversion_info.pNext                              = NULL;
+        conversion_info.format                             = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+        conversion_info.ycbcrModel                         = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
+        conversion_info.ycbcrRange                         = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
+        conversion_info.components.r                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+        conversion_info.components.g                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+        conversion_info.components.b                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+        conversion_info.components.a                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+        conversion_info.xChromaOffset                      = VK_CHROMA_LOCATION_MIDPOINT;
+        conversion_info.yChromaOffset                      = VK_CHROMA_LOCATION_MIDPOINT;
+        conversion_info.chromaFilter                       = VK_FILTER_LINEAR;
+        conversion_info.forceExplicitReconstruction        = VK_FALSE;
+        VkResult vkres                                     = vkCreateSamplerYcbcrConversion(ToApi(GetDevice())->GetVkDevice(), &conversion_info, NULL, &mYcbcrSamplerConversion);
+
+        if (vkres != VK_SUCCESS) {
+            PPX_ASSERT_MSG(false, "vkCreateSamplerYcbcrConversion() failed: " << ToString(vkres));
+            return ppx::ERROR_API_FAILURE;
+        }
+
+        ycbcr_info.sType      = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO;
+        ycbcr_info.pNext      = NULL;
+        ycbcr_info.conversion = mYcbcrSamplerConversion;
+
+        vkci.pNext        = &ycbcr_info;
+        vkci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        vkci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        vkci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        vkci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        vkci.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        vkci.subresourceRange.baseMipLevel   = 0;
+        vkci.subresourceRange.levelCount     = 1;
+        vkci.subresourceRange.baseArrayLayer = 0;
+        vkci.subresourceRange.layerCount     = 1;
+    }
+
     VkResult vkres = vk::CreateImageView(
         ToApi(GetDevice())->GetVkDevice(),
         &vkci,
@@ -397,6 +535,9 @@ Result SampledImageView::CreateApiObjects(const grfx::SampledImageViewCreateInfo
 
 void SampledImageView::DestroyApiObjects()
 {
+    if (mYcbcrSamplerConversion) {
+        vkDestroySamplerYcbcrConversion(ToApi(GetDevice())->GetVkDevice(), mYcbcrSamplerConversion, nullptr);
+    }
     if (mImageView) {
         vkDestroyImageView(
             ToApi(GetDevice())->GetVkDevice(),
