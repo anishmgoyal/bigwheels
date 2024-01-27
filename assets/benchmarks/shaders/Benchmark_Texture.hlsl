@@ -21,6 +21,7 @@ Texture2D Tex1 : register(t3);
 Texture2D Tex2 : register(t4);
 Texture2D Tex3 : register(t5);
 Texture2D Tex4 : register(t6);
+SamplerState yuvsampler : register(s7);
 
 float4 psmain(VSOutputPos input) : SV_TARGET
 {

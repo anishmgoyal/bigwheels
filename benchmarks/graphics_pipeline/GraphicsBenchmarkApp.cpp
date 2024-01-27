@@ -560,6 +560,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE2_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE3_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE4_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
+        layoutCreateInfo.immutableSamplers.push_back(mYuvSampler);
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mFullscreenQuads.descriptorSetLayout));
     }
 

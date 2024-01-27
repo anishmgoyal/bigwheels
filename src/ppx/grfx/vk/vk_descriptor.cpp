@@ -264,6 +264,11 @@ Result DescriptorSetLayout::CreateApiObjects(const grfx::DescriptorSetLayoutCrea
         return ppx::ERROR_REQUIRED_FEATURE_UNAVAILABLE;
     }
 
+    std::vector<VkSampler> vkImmutableSamplers;
+    for (size_t i = 0; i < pCreateInfo->immutableSamplers.size(); ++i) {
+        vkImmutableSamplers.push_back(ToApi(pCreateInfo->immutableSamplers[i])->GetVkSampler());
+    }
+
     std::vector<VkDescriptorSetLayoutBinding> vkBindings;
     for (size_t i = 0; i < pCreateInfo->bindings.size(); ++i) {
         const grfx::DescriptorBinding& baseBinding = pCreateInfo->bindings[i];
@@ -273,7 +278,7 @@ Result DescriptorSetLayout::CreateApiObjects(const grfx::DescriptorSetLayoutCrea
         vkBinding.descriptorType               = ToVkDescriptorType(baseBinding.type);
         vkBinding.descriptorCount              = baseBinding.arrayCount;
         vkBinding.stageFlags                   = ToVkShaderStageFlags(baseBinding.shaderVisiblity);
-        vkBinding.pImmutableSamplers           = nullptr;
+        vkBinding.pImmutableSamplers           = pCreateInfo->immutableSamplers.empty() ? nullptr : vkImmutableSamplers.data();
         vkBindings.push_back(vkBinding);
     }
 

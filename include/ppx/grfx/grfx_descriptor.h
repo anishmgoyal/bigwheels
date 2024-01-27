@@ -156,6 +156,7 @@ struct DescriptorSetLayoutCreateInfo
 {
     grfx::DescriptorSetLayoutFlags       flags;
     std::vector<grfx::DescriptorBinding> bindings;
+    std::vector<grfx::SamplerPtr>        immutableSamplers;
 };
 
 //! @class DescriptorSetLayout
