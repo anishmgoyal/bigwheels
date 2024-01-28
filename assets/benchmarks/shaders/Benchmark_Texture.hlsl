@@ -21,6 +21,10 @@ Texture2D Tex1 : register(t3);
 Texture2D Tex2 : register(t4);
 Texture2D Tex3 : register(t5);
 Texture2D Tex4 : register(t6);
+
+[[vk::combinedImageSampler]]
+Texture2D YUVTex : register(t7);
+[[vk::combinedImageSampler]]
 SamplerState yuvsampler : register(s7);
 
 float4 psmain(VSOutputPos input) : SV_TARGET
@@ -31,7 +35,13 @@ float4 psmain(VSOutputPos input) : SV_TARGET
     float4 c2 = Tex2.SampleLevel(pointsampler, input.texcoord, 0);
     float4 c3 = Tex3.SampleLevel(pointsampler, input.texcoord, 0);
     float4 c4 = Tex4.SampleLevel(pointsampler, input.texcoord, 0);
-    if (!any(c0))
+
+
+    float4 cYUV = YUVTex.SampleLevel(yuvsampler, input.texcoord, 0);
+
+    float4 sum_c = cYUV + 0.0001 * ( c0 + c1/* + c2 + c3 + c4*/)/2.f;
+
+    if (!any(sum_c))
         dataBuffer[0] = c0.r;
-    return (c0 + c1/* + c2 + c3 + c4*/)/2.f;
+    return sum_c;
 }

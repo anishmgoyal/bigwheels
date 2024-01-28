@@ -264,21 +264,22 @@ Result DescriptorSetLayout::CreateApiObjects(const grfx::DescriptorSetLayoutCrea
         return ppx::ERROR_REQUIRED_FEATURE_UNAVAILABLE;
     }
 
-    std::vector<VkSampler> vkImmutableSamplers;
-    for (size_t i = 0; i < pCreateInfo->immutableSamplers.size(); ++i) {
-        vkImmutableSamplers.push_back(ToApi(pCreateInfo->immutableSamplers[i])->GetVkSampler());
-    }
+    std::vector<std::vector<VkSampler>> vkImmutableSamplers(pCreateInfo->bindings.size());
 
     std::vector<VkDescriptorSetLayoutBinding> vkBindings;
     for (size_t i = 0; i < pCreateInfo->bindings.size(); ++i) {
         const grfx::DescriptorBinding& baseBinding = pCreateInfo->bindings[i];
+
+        for (size_t s = 0; s < baseBinding.immutableSamplers.size(); ++s) {
+            vkImmutableSamplers[i].push_back(ToApi(baseBinding.immutableSamplers[s])->GetVkSampler());
+        }
 
         VkDescriptorSetLayoutBinding vkBinding = {};
         vkBinding.binding                      = baseBinding.binding;
         vkBinding.descriptorType               = ToVkDescriptorType(baseBinding.type);
         vkBinding.descriptorCount              = baseBinding.arrayCount;
         vkBinding.stageFlags                   = ToVkShaderStageFlags(baseBinding.shaderVisiblity);
-        vkBinding.pImmutableSamplers           = pCreateInfo->immutableSamplers.empty() ? nullptr : vkImmutableSamplers.data();
+        vkBinding.pImmutableSamplers           = vkImmutableSamplers[i].empty() ? nullptr : vkImmutableSamplers[i].data();
         vkBindings.push_back(vkBinding);
     }
 

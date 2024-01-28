@@ -43,6 +43,8 @@ static constexpr size_t QUADS_SAMPLED_IMAGE2_REGISTER = 4;
 static constexpr size_t QUADS_SAMPLED_IMAGE3_REGISTER = 5;
 static constexpr size_t QUADS_SAMPLED_IMAGE4_REGISTER = 6;
 
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER = 7;
+
 static float TEST_IMAGE_COUNT = 2.f;
 
 #if defined(USE_DX12)
@@ -196,7 +198,7 @@ void GraphicsBenchmarkApp::Config(ppx::ApplicationSettings& settings)
 #if defined(PPX_BUILD_XR)
     // XR specific settings
     settings.grfx.pacedFrameRate   = 0;
-    settings.xr.enable             = false; // Change this to true to enable the XR mode
+    settings.xr.enable             = true; // Change this to true to enable the XR mode
     settings.xr.enableDebugCapture = false;
 #endif
     settings.standardKnobsDefaultValue.enableMetrics        = true;
@@ -254,6 +256,7 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.maxLod                  = 1.0f;
         samplerCreateInfo.borderColor             = grfx::BORDER_COLOR_FLOAT_OPAQUE_BLACK;
         samplerCreateInfo.maxLod                  = 1.0f;
+        samplerCreateInfo.isYuv                   = true;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mYuvSampler));
     }
     // Descriptor Pool
@@ -560,7 +563,10 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE2_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE3_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE4_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
-        layoutCreateInfo.immutableSamplers.push_back(mYuvSampler);
+
+        auto yuvbinding = grfx::DescriptorBinding(QUADS_SAMPLED_YUV_IMAGE_REGISTER, grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+        yuvbinding.immutableSamplers.push_back(mYuvSampler);
+        layoutCreateInfo.bindings.push_back(yuvbinding);
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mFullscreenQuads.descriptorSetLayout));
     }
 
@@ -641,6 +647,16 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE2_REGISTER, 0, mQuadsTexture2));
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE3_REGISTER, 0, mQuadsTexture3));
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE4_REGISTER, 0, mQuadsTexture4));
+
+        {
+            grfx::WriteDescriptor write = {};
+            write.binding               = QUADS_SAMPLED_YUV_IMAGE_REGISTER;
+            write.arrayIndex            = 0;
+            write.type                  = grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            write.pImageView            = mYUVTexture0->GetSampledImageView();
+            write.pSampler              = mYuvSampler;
+            PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(1, &write));
+        }
     }
 }
 

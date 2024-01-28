@@ -87,8 +87,7 @@ protected:
     virtual void   DestroyApiObjects() override;
 
 private:
-    VkSamplerPtr             mSampler;
-    VkSamplerYcbcrConversion mYcbcrSamplerConversion = VK_NULL_HANDLE;
+    VkSamplerPtr mSampler;
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -145,8 +144,7 @@ protected:
     virtual void   DestroyApiObjects() override;
 
 private:
-    VkImageViewPtr           mImageView;
-    VkSamplerYcbcrConversion mYcbcrSamplerConversion = VK_NULL_HANDLE;
+    VkImageViewPtr mImageView;
 };
 
 // -------------------------------------------------------------------------------------------------
