@@ -40,9 +40,9 @@ static constexpr size_t QUADS_POINT_SAMPLER_REGISTER = 1;
 static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER_START     = 2;
 static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 7;
 
-// PT texture is 6304x3840 = 3152 x 2 x 3840
-const uint32_t kYuvWidth  = 3152;
-const uint32_t kYuvHeight = 3840;
+// PT texture is 3000 x 2 x 3000
+const uint32_t kYuvWidth  = 3000;
+const uint32_t kYuvHeight = 3000;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -119,7 +119,7 @@ void GraphicsBenchmarkApp::InitKnobs()
     pDepthTestWrite->SetFlagDescription("Enable depth test and depth write for spheres.");
     pDepthTestWrite->SetIndent(1);
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ 750, /* minValue = */ 0, kMaxFullscreenQuadsCount);
+    GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ 1, /* minValue = */ 0, kMaxFullscreenQuadsCount);
     pFullscreenQuadsCount->SetDisplayName("Number of Fullscreen Quads");
     pFullscreenQuadsCount->SetFlagDescription("Select the number of fullscreen quads to render.");
 
@@ -329,7 +329,7 @@ void GraphicsBenchmarkApp::Setup()
 
     {
         OffscreenFrame frame = {};
-        PPX_CHECKED_CALL(CreateOffscreenFrame(frame, RenderFormat(), GetSwapchain()->GetDepthFormat(), GetSwapchain()->GetWidth(), GetSwapchain()->GetHeight()));
+        PPX_CHECKED_CALL(CreateOffscreenFrame(frame, RenderFormat(), grfx::Format::FORMAT_UNDEFINED /*GetSwapchain()->GetDepthFormat()*/, GetSwapchain()->GetWidth(), GetSwapchain()->GetHeight()));
         mOffscreenFrame.push_back(frame);
     }
 }
@@ -966,7 +966,7 @@ void GraphicsBenchmarkApp::UpdateOffscreenBuffer(grfx::Format format, int w, int
     GetDevice()->WaitIdle();
     for (auto& frame : mOffscreenFrame) {
         DestroyOffscreenFrame(frame);
-        PPX_CHECKED_CALL(CreateOffscreenFrame(frame, format, GetSwapchain()->GetDepthFormat(), w, h));
+        PPX_CHECKED_CALL(CreateOffscreenFrame(frame, format, grfx::Format::FORMAT_UNDEFINED /*GetSwapchain()->GetDepthFormat()*/, w, h));
     }
 }
 
@@ -1525,7 +1525,7 @@ ppx::Result GraphicsBenchmarkApp::CreateBlitContext(BlitContext& blit)
         createInfo.sets[0].pLayout                = blit.descriptorSetLayout;
         createInfo.renderTargetCount              = 1;
         createInfo.renderTargetFormats[0]         = GetSwapchain()->GetColorFormat();
-        createInfo.depthStencilFormat             = GetSwapchain()->GetDepthFormat();
+        createInfo.depthStencilFormat             = grfx::FORMAT_UNDEFINED;
 
         PPX_CHECKED_CALL(GetDevice()->CreateFullscreenQuad(&createInfo, &blit.quad));
     }
@@ -1555,13 +1555,15 @@ void GraphicsBenchmarkApp::DestroyOffscreenFrame(OffscreenFrame& frame)
     for (auto& rtv : frame.renderTargetViews) {
         GetDevice()->DestroyRenderTargetView(rtv);
     }
-    GetDevice()->DestroyDepthStencilView(frame.depthStencilView);
+    if (frame.depthStencilView) {
+        GetDevice()->DestroyDepthStencilView(frame.depthStencilView);
+        GetDevice()->DestroyImage(frame.depthImage);
+    }
 
     GetDevice()->FreeDescriptorSet(frame.blitDescriptorSet);
     GetDevice()->DestroyTexture(frame.blitSource);
 
     GetDevice()->DestroyImage(frame.colorImage);
-    GetDevice()->DestroyImage(frame.depthImage);
 
     // Reset all the pointers to nullptr.
     frame = {};

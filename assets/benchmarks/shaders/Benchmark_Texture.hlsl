@@ -52,7 +52,7 @@ float4 psmain(VSOutputPos input) : SV_TARGET
     float4 c3 = Tex3.SampleLevel(pointsampler, input.texcoord, 0);
     //float4 c4 = Tex4.SampleLevel(pointsampler, input.texcoord, 0);
 
-    float4 sum_c = (c0 + c1  + c2  + c3/*  + c4*/)/4.f ;
+    float4 sum_c = (c0/* + c1  + c2  + c3  + c4*/)/1.f ;
 
     float4 cYUV0 = YUVTex0.SampleLevel(yuvsampler0, input.texcoord, 0);
     float4 cYUV1 = YUVTex1.SampleLevel(yuvsampler1, input.texcoord, 0);
@@ -60,8 +60,8 @@ float4 psmain(VSOutputPos input) : SV_TARGET
     float4 cYUV3 = YUVTex3.SampleLevel(yuvsampler3, input.texcoord, 0);
     //float4 cYUV4 = YUVTex4.SampleLevel(yuvsampler4, input.texcoord, 0);
 
-    float4 sum_c_yuv = (cYUV0 + cYUV1  + cYUV2  + cYUV3/*  + cYUV4*/)/4.f ;
-    sum_c += sum_c_yuv;
+    float4 sum_c_yuv = (cYUV0/* + cYUV1  + cYUV2  + cYUV3  + cYUV4*/)/1.f ;
+    sum_c = sum_c * 0.5f + sum_c_yuv * 0.5f;
 
     if (!any(sum_c))
         dataBuffer[0] = sum_c.r;

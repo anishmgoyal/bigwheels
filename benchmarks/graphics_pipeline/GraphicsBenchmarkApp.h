@@ -42,8 +42,8 @@ static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
 static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv.raw";
 
-static constexpr uint32_t kImageCount    = 4;
-static constexpr uint32_t kYuvImageCount = 4;
+static constexpr uint32_t kImageCount    = 1;
+static constexpr uint32_t kYuvImageCount = 1;
 
 enum class DebugView
 {
@@ -184,7 +184,7 @@ static constexpr std::array<std::pair<int, int>, 1 + 8> kSimpleResolutions = {{
     {8192, 8192},
 }};
 
-static constexpr std::array<std::pair<int, int>, 6 + 5 + 2> kCommonResolutions = {{
+static constexpr std::array<std::pair<int, int>, 6 + 5 + 2 + 2> kCommonResolutions = {{
     // 16:9 Wide screen
     {1280, 720},  // 720p
     {1920, 1080}, // 1080p
@@ -201,6 +201,9 @@ static constexpr std::array<std::pair<int, int>, 6 + 5 + 2> kCommonResolutions =
     // Other common display resolution
     {3840, 1600}, // 4K ultrawide
     {5120, 2160}, // 5K ultrawide
+    //
+    {3552, 3840},
+    {2664, 2880},
 }};
 
 static constexpr std::array<std::pair<int, int>, 8 + 9> kVRPerEyeResolutions = {{
