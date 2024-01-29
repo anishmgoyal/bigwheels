@@ -34,22 +34,15 @@ static constexpr size_t SPHERE_NORMAL_SAMPLER_REGISTER                = 5;
 static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLED_IMAGE_REGISTER = 6;
 static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLER_REGISTER       = 7;
 
-static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER = 0;
+static constexpr size_t QUADS_DUMMY_BUFFER_REGISTER  = 0;
+static constexpr size_t QUADS_POINT_SAMPLER_REGISTER = 1;
 
-static constexpr size_t QUADS_DUMMY_BUFFER_REGISTER   = 1;
-static constexpr size_t QUADS_POINT_SAMPLER_REGISTER  = 2;
-static constexpr size_t QUADS_SAMPLED_IMAGE1_REGISTER = 3;
-static constexpr size_t QUADS_SAMPLED_IMAGE2_REGISTER = 4;
-static constexpr size_t QUADS_SAMPLED_IMAGE3_REGISTER = 5;
-static constexpr size_t QUADS_SAMPLED_IMAGE4_REGISTER = 6;
+static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER_START     = 2;
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 7;
 
-static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER  = 7;
-static constexpr size_t QUADS_SAMPLED_YUV_IMAGE1_REGISTER = 8;
-static constexpr size_t QUADS_SAMPLED_YUV_IMAGE2_REGISTER = 9;
-static constexpr size_t QUADS_SAMPLED_YUV_IMAGE3_REGISTER = 10;
-static constexpr size_t QUADS_SAMPLED_YUV_IMAGE4_REGISTER = 11;
-
-static float TEST_IMAGE_COUNT = 1.f;
+// PT texture is 6304x3840 = 3152 x 2 x 3840
+const uint32_t kYuvWidth  = 3152;
+const uint32_t kYuvHeight = 3840;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -401,12 +394,13 @@ void GraphicsBenchmarkApp::UpdateMetrics()
             }
 
             // Read Bandwidth: only valid when there is only read
-            const auto readTexelSize = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
-            // TODO(wangra)
-            // const float dataReadInGb = (static_cast<float>(mQuadsTexture->GetWidth()) * static_cast<float>(mQuadsTexture->GetHeight()) * readTexelSize * quadCount) / (1024.f * 1024.f * 1024.f);
-            const float dataReadInGb = (kYuvImageCount * 3152.f * 3840.f * 1.5f * quadCount) / (1024.f * 1024.f * 1024.f);
+            const auto  readTexelSize       = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
+            const float textureDataReadInGb = (static_cast<float>(kImageCount) * static_cast<float>(mQuadsTexture[0]->GetWidth()) * static_cast<float>(mQuadsTexture[0]->GetHeight()) * readTexelSize * quadCount) / (1024.f * 1024.f * 1024.f);
+            // 1.5 is because Y is in full res, UV is having 1/2W and 1/2H, so 1 + 1/2*1/2 + 1/2*1/2 = 1.5
+            const float yuvTextureDataReadInGb = (static_cast<float>(kYuvImageCount) * static_cast<float>(mYUVTexture[0]->GetWidth()) * static_cast<float>(mYUVTexture[0]->GetHeight()) * 1.5f * quadCount) / (1024.f * 1024.f * 1024.f);
+            const float dataReadInGb           = textureDataReadInGb + yuvTextureDataReadInGb;
             {
-                const float              readBandwidth = (dataReadInGb) / gpuWorkDurationInSec;
+                const float              readBandwidth = dataReadInGb / gpuWorkDurationInSec;
                 ppx::metrics::MetricData data          = {ppx::metrics::MetricType::GAUGE};
                 data.gauge.seconds                     = GetElapsedSeconds();
                 data.gauge.value                       = readBandwidth;
@@ -415,7 +409,7 @@ void GraphicsBenchmarkApp::UpdateMetrics()
 
             // Total Bandwidth
             {
-                const float              totalBandwidth = (TEST_IMAGE_COUNT * dataReadInGb + dataWriteInGb) / gpuWorkDurationInSec;
+                const float              totalBandwidth = (dataReadInGb + dataWriteInGb) / gpuWorkDurationInSec;
                 ppx::metrics::MetricData data           = {ppx::metrics::MetricType::GAUGE};
                 data.gauge.seconds                      = GetElapsedSeconds();
                 data.gauge.value                        = totalBandwidth;
@@ -536,16 +530,11 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
     {
         // Large resolution image
         grfx_util::TextureOptions options = grfx_util::TextureOptions().MipLevelCount(1);
-        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture, options));
-        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture1, options));
-        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture2, options));
-        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture3, options));
-        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture4, options));
+        for (uint32_t k = 0; k < kImageCount; ++k) {
+            PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture[k], options));
+        }
 
         // yuv texture
-        // PT texture is 6304x3840 = 3152 x 2 x 3840
-        const uint32_t kYuvWidth  = 3152;
-        const uint32_t kYuvHeight = 3840;
         for (uint32_t k = 0; k < kYuvImageCount; ++k) {
             PPX_CHECKED_CALL(CreateYUVTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(kYUVTextureFile), kYuvWidth, kYuvHeight, &mYUVTexture[k], options));
         }
@@ -564,18 +553,18 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
 
     // Descriptor set layout for texture shader
     {
+        PPX_ASSERT_MSG((QUADS_SAMPLED_YUV_IMAGE_REGISTER_START - QUADS_SAMPLED_IMAGE_REGISTER_START) > kImageCount, "Need to have enough slot for regular textures");
+
         grfx::DescriptorSetLayoutCreateInfo layoutCreateInfo = {};
-        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_DUMMY_BUFFER_REGISTER, grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_POINT_SAMPLER_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLER));
-        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE1_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
-        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE2_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
-        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE3_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
-        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE4_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
 
-        uint32_t yuvBindings[5] = {QUADS_SAMPLED_YUV_IMAGE_REGISTER, QUADS_SAMPLED_YUV_IMAGE1_REGISTER, QUADS_SAMPLED_YUV_IMAGE2_REGISTER, QUADS_SAMPLED_YUV_IMAGE3_REGISTER, QUADS_SAMPLED_YUV_IMAGE4_REGISTER};
+        for (uint32_t k = 0; k < kImageCount; ++k) {
+            layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE_REGISTER_START + k, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
+        }
+
         for (uint32_t k = 0; k < kYuvImageCount; ++k) {
-            auto yuvbinding = grfx::DescriptorBinding(yuvBindings[k], grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+            auto yuvbinding = grfx::DescriptorBinding(QUADS_SAMPLED_YUV_IMAGE_REGISTER_START + k, grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
             yuvbinding.immutableSamplers.push_back(mYuvSampler[k]);
             layoutCreateInfo.bindings.push_back(yuvbinding);
         }
@@ -642,11 +631,8 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
     GetDevice()->WaitIdle();
     uint32_t n = GetNumFramesInFlight();
 
-    uint32_t yuvBindings[5] = {QUADS_SAMPLED_YUV_IMAGE_REGISTER, QUADS_SAMPLED_YUV_IMAGE1_REGISTER, QUADS_SAMPLED_YUV_IMAGE2_REGISTER, QUADS_SAMPLED_YUV_IMAGE3_REGISTER, QUADS_SAMPLED_YUV_IMAGE4_REGISTER};
-
     for (size_t i = 0; i < n; i++) {
         grfx::DescriptorSetPtr pDescriptorSet = mFullscreenQuads.descriptorSets[i];
-        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE_REGISTER, 0, mQuadsTexture));
 
         grfx::WriteDescriptor write  = {};
         write.binding                = QUADS_DUMMY_BUFFER_REGISTER;
@@ -656,17 +642,17 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
         write.bufferRange            = PPX_WHOLE_SIZE;
         write.structuredElementCount = 1;
         write.pBuffer                = mQuadsDummyBuffer;
-        PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(QUADS_DUMMY_BUFFER_REGISTER, &write));
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(1, &write));
 
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampler(QUADS_POINT_SAMPLER_REGISTER, 0, mPointSampler));
-        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE1_REGISTER, 0, mQuadsTexture1));
-        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE2_REGISTER, 0, mQuadsTexture2));
-        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE3_REGISTER, 0, mQuadsTexture3));
-        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE4_REGISTER, 0, mQuadsTexture4));
+
+        for (uint32_t k = 0; k < kImageCount; ++k) {
+            PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE_REGISTER_START + k, 0, mQuadsTexture[k]));
+        }
 
         for (uint32_t k = 0; k < kYuvImageCount; ++k) {
             grfx::WriteDescriptor write = {};
-            write.binding               = yuvBindings[k];
+            write.binding               = QUADS_SAMPLED_YUV_IMAGE_REGISTER_START + k;
             write.arrayIndex            = 0;
             write.type                  = grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             write.pImageView            = mYUVTexture[k]->GetSampledImageView();
