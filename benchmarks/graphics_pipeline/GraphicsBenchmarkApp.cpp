@@ -43,9 +43,13 @@ static constexpr size_t QUADS_SAMPLED_IMAGE2_REGISTER = 4;
 static constexpr size_t QUADS_SAMPLED_IMAGE3_REGISTER = 5;
 static constexpr size_t QUADS_SAMPLED_IMAGE4_REGISTER = 6;
 
-static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER = 7;
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER  = 7;
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE1_REGISTER = 8;
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE2_REGISTER = 9;
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE3_REGISTER = 10;
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE4_REGISTER = 11;
 
-static float TEST_IMAGE_COUNT = 2.f;
+static float TEST_IMAGE_COUNT = 1.f;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -241,7 +245,8 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.maxLod                  = FLT_MAX;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mPointSampler));
     }
-    {
+
+    for (uint32_t k = 0; k < kYuvImageCount; ++k) {
         grfx::SamplerCreateInfo samplerCreateInfo = {};
         samplerCreateInfo.magFilter               = grfx::FILTER_LINEAR;
         samplerCreateInfo.minFilter               = grfx::FILTER_LINEAR;
@@ -257,7 +262,7 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.borderColor             = grfx::BORDER_COLOR_FLOAT_OPAQUE_BLACK;
         samplerCreateInfo.maxLod                  = 1.0f;
         samplerCreateInfo.isYuv                   = true;
-        PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mYuvSampler));
+        PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mYuvSampler[k]));
     }
     // Descriptor Pool
     {
@@ -396,10 +401,12 @@ void GraphicsBenchmarkApp::UpdateMetrics()
             }
 
             // Read Bandwidth: only valid when there is only read
-            const auto  readTexelSize = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
-            const float dataReadInGb  = (static_cast<float>(mQuadsTexture->GetWidth()) * static_cast<float>(mQuadsTexture->GetHeight()) * readTexelSize * quadCount) / (1024.f * 1024.f * 1024.f);
+            const auto readTexelSize = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
+            // TODO(wangra)
+            // const float dataReadInGb = (static_cast<float>(mQuadsTexture->GetWidth()) * static_cast<float>(mQuadsTexture->GetHeight()) * readTexelSize * quadCount) / (1024.f * 1024.f * 1024.f);
+            const float dataReadInGb = (kYuvImageCount * 3152.f * 3840.f * 1.5f * quadCount) / (1024.f * 1024.f * 1024.f);
             {
-                const float              readBandwidth = (TEST_IMAGE_COUNT * dataReadInGb) / gpuWorkDurationInSec;
+                const float              readBandwidth = (dataReadInGb) / gpuWorkDurationInSec;
                 ppx::metrics::MetricData data          = {ppx::metrics::MetricType::GAUGE};
                 data.gauge.seconds                     = GetElapsedSeconds();
                 data.gauge.value                       = readBandwidth;
@@ -539,7 +546,9 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         // PT texture is 6304x3840 = 3152 x 2 x 3840
         const uint32_t kYuvWidth  = 3152;
         const uint32_t kYuvHeight = 3840;
-        PPX_CHECKED_CALL(CreateYUVTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(kYUVTextureFile), kYuvWidth, kYuvHeight, &mYUVTexture0, options));
+        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
+            PPX_CHECKED_CALL(CreateYUVTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(kYUVTextureFile), kYuvWidth, kYuvHeight, &mYUVTexture[k], options));
+        }
     }
 
     // dummy buffers
@@ -564,9 +573,13 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE3_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE4_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
 
-        auto yuvbinding = grfx::DescriptorBinding(QUADS_SAMPLED_YUV_IMAGE_REGISTER, grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-        yuvbinding.immutableSamplers.push_back(mYuvSampler);
-        layoutCreateInfo.bindings.push_back(yuvbinding);
+        uint32_t yuvBindings[5] = {QUADS_SAMPLED_YUV_IMAGE_REGISTER, QUADS_SAMPLED_YUV_IMAGE1_REGISTER, QUADS_SAMPLED_YUV_IMAGE2_REGISTER, QUADS_SAMPLED_YUV_IMAGE3_REGISTER, QUADS_SAMPLED_YUV_IMAGE4_REGISTER};
+        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
+            auto yuvbinding = grfx::DescriptorBinding(yuvBindings[k], grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+            yuvbinding.immutableSamplers.push_back(mYuvSampler[k]);
+            layoutCreateInfo.bindings.push_back(yuvbinding);
+        }
+
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mFullscreenQuads.descriptorSetLayout));
     }
 
@@ -628,6 +641,9 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
 {
     GetDevice()->WaitIdle();
     uint32_t n = GetNumFramesInFlight();
+
+    uint32_t yuvBindings[5] = {QUADS_SAMPLED_YUV_IMAGE_REGISTER, QUADS_SAMPLED_YUV_IMAGE1_REGISTER, QUADS_SAMPLED_YUV_IMAGE2_REGISTER, QUADS_SAMPLED_YUV_IMAGE3_REGISTER, QUADS_SAMPLED_YUV_IMAGE4_REGISTER};
+
     for (size_t i = 0; i < n; i++) {
         grfx::DescriptorSetPtr pDescriptorSet = mFullscreenQuads.descriptorSets[i];
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE_REGISTER, 0, mQuadsTexture));
@@ -648,13 +664,13 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE3_REGISTER, 0, mQuadsTexture3));
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE4_REGISTER, 0, mQuadsTexture4));
 
-        {
+        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
             grfx::WriteDescriptor write = {};
-            write.binding               = QUADS_SAMPLED_YUV_IMAGE_REGISTER;
+            write.binding               = yuvBindings[k];
             write.arrayIndex            = 0;
             write.type                  = grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            write.pImageView            = mYUVTexture0->GetSampledImageView();
-            write.pSampler              = mYuvSampler;
+            write.pImageView            = mYUVTexture[k]->GetSampledImageView();
+            write.pSampler              = mYuvSampler[k];
             PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(1, &write));
         }
     }

@@ -26,22 +26,42 @@ Texture2D Tex4 : register(t6);
 Texture2D YUVTex : register(t7);
 [[vk::combinedImageSampler]]
 SamplerState yuvsampler : register(s7);
+[[vk::combinedImageSampler]]
+Texture2D YUVTex1 : register(t8);
+[[vk::combinedImageSampler]]
+SamplerState yuvsampler1 : register(s8);
+[[vk::combinedImageSampler]]
+Texture2D YUVTex2 : register(t9);
+[[vk::combinedImageSampler]]
+SamplerState yuvsampler2 : register(s9);
+[[vk::combinedImageSampler]]
+Texture2D YUVTex3 : register(t10);
+[[vk::combinedImageSampler]]
+SamplerState yuvsampler3 : register(s10);
+[[vk::combinedImageSampler]]
+Texture2D YUVTex4 : register(t11);
+[[vk::combinedImageSampler]]
+SamplerState yuvsampler4 : register(s11);
 
 float4 psmain(VSOutputPos input) : SV_TARGET
 {
     //float4 c = Tex0.Load(uint3(input.position.x, input.position.y, 0));
-    float4 c0 = Tex0.SampleLevel(pointsampler, input.texcoord, 0);
-    float4 c1 = Tex1.SampleLevel(pointsampler, input.texcoord, 0);
-    float4 c2 = Tex2.SampleLevel(pointsampler, input.texcoord, 0);
-    float4 c3 = Tex3.SampleLevel(pointsampler, input.texcoord, 0);
-    float4 c4 = Tex4.SampleLevel(pointsampler, input.texcoord, 0);
+    //float4 c0 = Tex0.SampleLevel(pointsampler, input.texcoord, 0);
+    //float4 c1 = Tex1.SampleLevel(pointsampler, input.texcoord, 0);
+    //float4 c2 = Tex2.SampleLevel(pointsampler, input.texcoord, 0);
+    //float4 c3 = Tex3.SampleLevel(pointsampler, input.texcoord, 0);
+    //float4 c4 = Tex4.SampleLevel(pointsampler, input.texcoord, 0);
 
 
     float4 cYUV = YUVTex.SampleLevel(yuvsampler, input.texcoord, 0);
+    float4 cYUV1 = YUVTex1.SampleLevel(yuvsampler1, input.texcoord, 0);
+    float4 cYUV2 = YUVTex2.SampleLevel(yuvsampler2, input.texcoord, 0);
+    float4 cYUV3 = YUVTex3.SampleLevel(yuvsampler3, input.texcoord, 0);
+    //float4 cYUV4 = YUVTex4.SampleLevel(yuvsampler4, input.texcoord, 0);
 
-    float4 sum_c = cYUV + 0.0001 * ( c0 + c1/* + c2 + c3 + c4*/)/2.f;
+    float4 sum_c = (cYUV + cYUV1  + cYUV2  + cYUV3/*  + cYUV4*/)/4.f ;
 
     if (!any(sum_c))
-        dataBuffer[0] = c0.r;
+        dataBuffer[0] = cYUV.r;
     return sum_c;
 }
