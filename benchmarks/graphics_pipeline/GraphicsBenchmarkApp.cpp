@@ -38,11 +38,13 @@ static constexpr size_t QUADS_DUMMY_BUFFER_REGISTER  = 0;
 static constexpr size_t QUADS_POINT_SAMPLER_REGISTER = 1;
 
 static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER_START     = 2;
-static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 7;
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 12;
 
 // PT texture is 3000 x 2 x 3000
-const uint32_t kYuvWidth  = 3000;
-const uint32_t kYuvHeight = 3000;
+const uint32_t kYuvWidth  = 3000; // 3152;
+const uint32_t kYuvHeight = 3000; // 3840;
+
+const uint32_t kQuadCount = 750;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -119,7 +121,7 @@ void GraphicsBenchmarkApp::InitKnobs()
     pDepthTestWrite->SetFlagDescription("Enable depth test and depth write for spheres.");
     pDepthTestWrite->SetIndent(1);
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ 1, /* minValue = */ 0, kMaxFullscreenQuadsCount);
+    GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ kQuadCount, /* minValue = */ 0, kMaxFullscreenQuadsCount);
     pFullscreenQuadsCount->SetDisplayName("Number of Fullscreen Quads");
     pFullscreenQuadsCount->SetFlagDescription("Select the number of fullscreen quads to render.");
 
@@ -176,7 +178,7 @@ void GraphicsBenchmarkApp::InitKnobs()
                 std::pair<int, int>(res.first * 2, res.second),
             });
         }
-        GetKnobManager().InitKnob(&pResolution, "offscreen-framebuffer-resolution", 0, resolutions);
+        GetKnobManager().InitKnob(&pResolution, "offscreen-framebuffer-resolution", 2, resolutions);
         pResolution->SetDisplayName("Framebuffer resolution");
         pResolution->SetFlagDescription("Select the size of offscreen framebuffer.");
         pResolution->SetIndent(1);
@@ -553,7 +555,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
 
     // Descriptor set layout for texture shader
     {
-        PPX_ASSERT_MSG((QUADS_SAMPLED_YUV_IMAGE_REGISTER_START - QUADS_SAMPLED_IMAGE_REGISTER_START) > kImageCount, "Need to have enough slot for regular textures");
+        PPX_ASSERT_MSG((QUADS_SAMPLED_YUV_IMAGE_REGISTER_START - QUADS_SAMPLED_IMAGE_REGISTER_START) >= kImageCount, "Need to have enough slot for regular textures");
 
         grfx::DescriptorSetLayoutCreateInfo layoutCreateInfo = {};
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_DUMMY_BUFFER_REGISTER, grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER));
@@ -1433,7 +1435,8 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
 
         if (HasActiveMetricsRun()) {
             // Write bandwidth is only valid when there is only write
-            if (pFullscreenQuadsType->GetIndex() != 2) {
+            // if (pFullscreenQuadsType->GetIndex() != 2)
+            {
                 const auto writeBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth]);
                 ImGui::Text("Average Write Bandwidth");
                 ImGui::NextColumn();
@@ -1450,7 +1453,8 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
                 ImGui::Text("%.2f GB/s", writeBandwidth.max);
                 ImGui::NextColumn();
             }
-            else {
+            // else
+            {
                 // Read bandwidth is only valid when there is only read
                 const auto readBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeReadBandwidth]);
                 ImGui::Text("Average Read Bandwidth");
