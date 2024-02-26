@@ -5,4 +5,12 @@ ArrayList projectAssets = [
     "basic/models",
 ]
 
+android {
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
 project.assets = projectAssets

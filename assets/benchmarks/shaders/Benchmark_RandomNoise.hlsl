@@ -30,8 +30,27 @@ float random(float2 st, uint32_t seed) {
     return frac(cos(dot(st.xy, randomVector))*40000.0f);
 }
 
+float rand_float(uint seed)
+{
+    const uint state = seed * 747796405u + 2891336453u;
+    const uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    //#define FAKE_HASH
+    #if defined(FAKE_HASH)
+    return ((word >> 22u) ^ word) * (1.0 / 4.0);
+    #else
+    return ((word >> 22u) ^ word) * (1.0 / 4294967296.0);
+    #endif
+}
+
 float4 psmain(VSOutputPos input) : SV_TARGET
 {
-    float rnd = random(input.position.xy, Random.Seed);
-    return float4(rnd, rnd, rnd, 1.0f);
+    //float rnd = random(input.position.xy, Random.Seed);
+    //return float4(rnd, rnd, rnd, 1.0f);
+
+    const uint pixel_id = uint(input.position.y * 7680 + input.position.x);
+    const float red = rand_float(pixel_id);
+    const float green = rand_float(pixel_id + 1);
+    const float blue = rand_float(pixel_id - 1);
+
+    return float4(red, green, blue, 1.0f);
 }

@@ -516,6 +516,10 @@ VkFormat ToVkFormat(grfx::Format value)
         case FORMAT_BC6H_SFLOAT         : return VK_FORMAT_BC6H_SFLOAT_BLOCK; break;
         case FORMAT_BC7_UNORM           : return VK_FORMAT_BC7_UNORM_BLOCK; break;
         case FORMAT_BC7_SRGB            : return VK_FORMAT_BC7_SRGB_BLOCK; break;
+
+        // YUV format
+        case FORMAT_G8_B8R8_2PLANE_420_UNORM            : return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM; break;
+         
     }
     // clang-format on
 

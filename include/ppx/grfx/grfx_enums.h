@@ -69,12 +69,13 @@ enum BlendFactor
 //!
 enum BlendMode
 {
-    BLEND_MODE_NONE          = 0,
-    BLEND_MODE_ADDITIVE      = 1,
-    BLEND_MODE_ALPHA         = 2,
-    BLEND_MODE_OVER          = 3,
-    BLEND_MODE_UNDER         = 4,
-    BLEND_MODE_PREMULT_ALPHA = 5,
+    BLEND_MODE_NONE            = 0,
+    BLEND_MODE_ADDITIVE        = 1,
+    BLEND_MODE_ALPHA           = 2,
+    BLEND_MODE_OVER            = 3,
+    BLEND_MODE_UNDER           = 4,
+    BLEND_MODE_PREMULT_ALPHA   = 5,
+    BLEND_MODE_OUTPUT_DISABLED = 6,
 };
 
 enum BlendOp
@@ -439,6 +440,12 @@ enum SampleCount
     SAMPLE_COUNT_16 = 16,
     SAMPLE_COUNT_32 = 32,
     SAMPLE_COUNT_64 = 64,
+};
+
+enum SemaphoreType
+{
+    SEMAPHORE_TYPE_BINARY   = 0,
+    SEMAPHORE_TYPE_TIMELINE = 1,
 };
 
 enum ShaderStageBits

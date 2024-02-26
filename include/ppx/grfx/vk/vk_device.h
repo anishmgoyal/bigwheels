@@ -50,12 +50,17 @@ public:
         uint32_t    firstQuery,
         uint32_t    queryCount) const;
 
+    VkResult WaitSemaphores(const VkSemaphoreWaitInfo* pWaitInfo, uint64_t timeout) const;
+    VkResult SignalSemaphore(const VkSemaphoreSignalInfo* pSignalInfo);
+    VkResult GetSemaphoreCounterValue(VkSemaphore semaphore, uint64_t* pValue);
+
     uint32_t                GetGraphicsQueueFamilyIndex() const { return mGraphicsQueueFamilyIndex; }
     uint32_t                GetComputeQueueFamilyIndex() const { return mComputeQueueFamilyIndex; }
     uint32_t                GetTransferQueueFamilyIndex() const { return mTransferQueueFamilyIndex; }
     std::array<uint32_t, 3> GetAllQueueFamilyIndices() const;
 
-    uint32_t GetMaxPushDescriptors() const { return mMaxPushDescriptors; }
+    uint32_t                     GetMaxPushDescriptors() const { return mMaxPushDescriptors; }
+    VkSamplerYcbcrConversionInfo GetVkSamplerYcbcrConversionInfo() const { return mYcbcrInfo; }
 
 protected:
     virtual Result AllocateObject(grfx::Buffer** ppObject) override;
@@ -113,6 +118,9 @@ private:
     bool                                           mHasUnrestrictedDepthRange                  = false;
     bool                                           mHasDynamicRendering                        = false;
     PFN_vkResetQueryPoolEXT                        mFnResetQueryPoolEXT                        = nullptr;
+    PFN_vkWaitSemaphores                           mFnWaitSemaphores                           = nullptr;
+    PFN_vkSignalSemaphore                          mFnSignalSemaphore                          = nullptr;
+    PFN_vkGetSemaphoreCounterValue                 mFnGetSemaphoreCounterValue                 = nullptr;
     uint32_t                                       mGraphicsQueueFamilyIndex                   = 0;
     uint32_t                                       mComputeQueueFamilyIndex                    = 0;
     uint32_t                                       mTransferQueueFamilyIndex                   = 0;
@@ -120,6 +128,9 @@ private:
     PFN_vkGetPhysicalDeviceFeatures2               mFnGetPhysicalDeviceFeatures2               = nullptr;
     PFN_vkGetPhysicalDeviceProperties2             mFnGetPhysicalDeviceProperties2             = nullptr;
     PFN_vkGetPhysicalDeviceFragmentShadingRatesKHR mFnGetPhysicalDeviceFragmentShadingRatesKHR = nullptr;
+
+    VkSamplerYcbcrConversion     mYcbcrSamplerConversion = VK_NULL_HANDLE;
+    VkSamplerYcbcrConversionInfo mYcbcrInfo;
 };
 
 extern PFN_vkCmdPushDescriptorSetKHR CmdPushDescriptorSetKHR;

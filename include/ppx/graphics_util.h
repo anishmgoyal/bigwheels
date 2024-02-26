@@ -111,6 +111,14 @@ Result CreateImageFromBitmapGpu(
     grfx::Image**       ppImage,
     const ImageOptions& options = ImageOptions());
 
+Result CopyBufferYUVToImage(
+    grfx::Queue*        pQueue,
+    const char*         pBufferData,
+    size_t              bufferSize,
+    grfx::Image*        pImage,
+    grfx::ResourceState stateBefore,
+    grfx::ResourceState stateAfter);
+
 // -------------------------------------------------------------------------------------------------
 
 class TextureOptions
@@ -147,6 +155,15 @@ private:
         const std::filesystem::path& path,
         grfx::Texture**              ppTexture,
         const TextureOptions&        options);
+
+    friend Result CreateYUVTextureFromBuffer(
+        grfx::Queue*          pQueue,
+        const char*           pBufferData,
+        size_t                bufferSize,
+        uint32_t              width,
+        uint32_t              height,
+        grfx::Texture**       ppTexture,
+        const TextureOptions& options);
 };
 
 //! @fn CreateTextureFromBitmap
@@ -188,6 +205,23 @@ Result CreateTextureFromFile(
     const std::filesystem::path& path,
     grfx::Texture**              ppTexture,
     const TextureOptions&        options = TextureOptions());
+
+Result CreateYUVTextureFromFile(
+    grfx::Queue*                 pQueue,
+    const std::filesystem::path& path,
+    uint32_t                     width,
+    uint32_t                     height,
+    grfx::Texture**              ppTexture,
+    const TextureOptions&        options);
+
+Result CreateYUVTextureFromBuffer(
+    grfx::Queue*          pQueue,
+    const char*           pBufferData,
+    size_t                bufferSize,
+    uint32_t              width,
+    uint32_t              height,
+    grfx::Texture**       ppTexture,
+    const TextureOptions& options);
 
 // Create a 1x1 texture with the specified pixel data. The format
 // for the texture is derived from the pixel data type, which

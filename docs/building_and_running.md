@@ -36,7 +36,7 @@ Alternatively, a DXC path can be provided using `-DDXC_PATH=<path to DXC executa
 Install the following prerequisite packages before building:
 
 ```
-sudo apt install libxrandr-dev libxinerama-dev libx11-dev libxcursor-dev libxi-dev libx11-xcb-dev clang mesa-vulkan-drivers
+sudo apt install libxrandr-dev libxinerama-dev libx11-dev libxcursor-dev libxi-dev libx11-xcb-dev clang mesa-vulkan-drivers cmake ninja-build
 ```
 
 ## Linux
@@ -50,6 +50,10 @@ ninja -C build
 Built binaries are written to `build/bin/`.
 
 ## Windows
+
+- Make sure the "Graphics Tools" feature is enabled (Settings > System > "Optional features" > "Add a feature" > "Graphics Tools". This is required to have DX12 debug layers.
+**Note: "Optional features" dialog is not the same as the "Turn Windows features on or off".**
+  
 ```
 git clone --recursive https://github.com/google/bigwheels
 cd bigwheels

@@ -238,10 +238,12 @@ Result Device::ConfigureFeatures(const grfx::DeviceCreateInfo* pCreateInfo, VkPh
 
     // Default device features
     //
+    // 2024/02/13 - Changed fillModeNonSolid to true to allow use of VK_POLYGON_MODE_LINE.
     // 2021/11/15 - Changed logic to use feature bit from GPU for geo and tess shaders to accomodate
     //              SwiftShader not having support for these shader types.
     //
     features                                      = {};
+    features.fillModeNonSolid                     = VK_TRUE;
     features.fullDrawIndexUint32                  = VK_TRUE;
     features.imageCubeArray                       = VK_TRUE;
     features.independentBlend                     = foundFeatures.independentBlend;
@@ -558,7 +560,6 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     std::vector<const char*> extensions = GetCStrings(mExtensions);
 
     VkDeviceCreateInfo vkci      = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
-    vkci.pNext                   = extensionStructs.empty() ? nullptr : extensionStructs[0];
     vkci.flags                   = 0;
     vkci.queueCreateInfoCount    = CountU32(queueCreateInfos);
     vkci.pQueueCreateInfos       = DataPtr(queueCreateInfos);
@@ -567,6 +568,14 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     vkci.enabledExtensionCount   = CountU32(extensions);
     vkci.ppEnabledExtensionNames = DataPtr(extensions);
     vkci.pEnabledFeatures        = &mDeviceFeatures;
+
+    VkPhysicalDeviceSamplerYcbcrConversionFeatures yuvFeature{};
+    yuvFeature.sType                  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES;
+    yuvFeature.samplerYcbcrConversion = true;
+    vkci.pNext                        = &yuvFeature;
+    if (!extensionStructs.empty()) {
+        yuvFeature.pNext = extensionStructs[0];
+    }
 
     // Log layers and extensions
     {
@@ -638,6 +647,12 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     else {
         mHasTimelineSemaphore = true;
     }
+    if (mHasTimelineSemaphore) {
+        // Load in KHR versions of functions since they'll cover Vulkan 1.1 and later versions
+        mFnWaitSemaphores           = (PFN_vkWaitSemaphoresKHR)vkGetDeviceProcAddr(mDevice, "vkWaitSemaphoresKHR");
+        mFnSignalSemaphore          = (PFN_vkSignalSemaphoreKHR)vkGetDeviceProcAddr(mDevice, "vkSignalSemaphoreKHR");
+        mFnGetSemaphoreCounterValue = (PFN_vkGetSemaphoreCounterValueKHR)vkGetDeviceProcAddr(mDevice, "vkGetSemaphoreCounterValueKHR");
+    }
     PPX_LOG_INFO("Vulkan timeline semaphore is present: " << mHasTimelineSemaphore);
 
 #if defined(VK_KHR_dynamic_rendering)
@@ -699,11 +714,40 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
         return ppxres;
     }
 
+    VkSamplerYcbcrConversionCreateInfo conversionInfo = {};
+    conversionInfo.sType                              = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO;
+    conversionInfo.pNext                              = NULL;
+    conversionInfo.format                             = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+    conversionInfo.ycbcrModel                         = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
+    conversionInfo.ycbcrRange                         = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
+    conversionInfo.components.r                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+    conversionInfo.components.g                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+    conversionInfo.components.b                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+    conversionInfo.components.a                       = VK_COMPONENT_SWIZZLE_IDENTITY;
+    conversionInfo.xChromaOffset                      = VK_CHROMA_LOCATION_MIDPOINT;
+    conversionInfo.yChromaOffset                      = VK_CHROMA_LOCATION_MIDPOINT;
+    conversionInfo.chromaFilter                       = VK_FILTER_LINEAR;
+    conversionInfo.forceExplicitReconstruction        = VK_FALSE;
+    vkres                                             = vkCreateSamplerYcbcrConversion(mDevice, &conversionInfo, NULL, &mYcbcrSamplerConversion);
+
+    if (vkres != VK_SUCCESS) {
+        PPX_ASSERT_MSG(false, "vkCreateSamplerYcbcrConversion() failed: " << ToString(vkres));
+        return ppx::ERROR_API_FAILURE;
+    }
+
+    mYcbcrInfo.sType      = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO;
+    mYcbcrInfo.pNext      = NULL;
+    mYcbcrInfo.conversion = mYcbcrSamplerConversion;
+
     return ppx::SUCCESS;
 }
 
 void Device::DestroyApiObjects()
 {
+    if (mYcbcrSamplerConversion) {
+        vkDestroySamplerYcbcrConversion(mDevice, mYcbcrSamplerConversion, nullptr);
+    }
+
     if (mVmaAllocator) {
         vmaDestroyAllocator(mVmaAllocator);
         mVmaAllocator.Reset();
@@ -985,6 +1029,24 @@ void Device::ResetQueryPoolEXT(
     uint32_t    queryCount) const
 {
     mFnResetQueryPoolEXT(mDevice, queryPool, firstQuery, queryCount);
+}
+
+VkResult Device::WaitSemaphores(const VkSemaphoreWaitInfo* pWaitInfo, uint64_t timeout) const
+{
+    PPX_ASSERT_NULL_ARG(mFnWaitSemaphores);
+    return mFnWaitSemaphores(mDevice, pWaitInfo, timeout);
+}
+
+VkResult Device::SignalSemaphore(const VkSemaphoreSignalInfo* pSignalInfo)
+{
+    PPX_ASSERT_NULL_ARG(mFnSignalSemaphore);
+    return mFnSignalSemaphore(mDevice, pSignalInfo);
+}
+
+VkResult Device::GetSemaphoreCounterValue(VkSemaphore semaphore, uint64_t* pValue)
+{
+    PPX_ASSERT_NULL_ARG(mFnGetSemaphoreCounterValue);
+    return mFnGetSemaphoreCounterValue(mDevice, semaphore, pValue);
 }
 
 std::array<uint32_t, 3> Device::GetAllQueueFamilyIndices() const

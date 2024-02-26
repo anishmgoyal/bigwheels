@@ -34,7 +34,17 @@ static constexpr size_t SPHERE_NORMAL_SAMPLER_REGISTER                = 5;
 static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLED_IMAGE_REGISTER = 6;
 static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLER_REGISTER       = 7;
 
-static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER = 0;
+static constexpr size_t QUADS_DUMMY_BUFFER_REGISTER  = 0;
+static constexpr size_t QUADS_POINT_SAMPLER_REGISTER = 1;
+
+static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER_START     = 2;
+static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 12;
+
+// PT texture is 3000 x 2 x 3000
+const uint32_t kYuvWidth  = 3000; // 3152;
+const uint32_t kYuvHeight = 3000; // 3840;
+
+const uint32_t kQuadCount = 750;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -48,11 +58,11 @@ void GraphicsBenchmarkApp::InitKnobs()
     PPX_ASSERT_MSG(!cl_options.HasExtraOption("vs-shader-index"), "--vs-shader-index flag has been replaced, instead use --vs and specify the name of the vertex shader");
     PPX_ASSERT_MSG(!cl_options.HasExtraOption("ps-shader-index"), "--ps-shader-index flag has been replaced, instead use --ps and specify the name of the pixel shader");
 
-    GetKnobManager().InitKnob(&pEnableSkyBox, "enable-skybox", true);
+    GetKnobManager().InitKnob(&pEnableSkyBox, "enable-skybox", false);
     pEnableSkyBox->SetDisplayName("Enable SkyBox");
     pEnableSkyBox->SetFlagDescription("Enable the SkyBox in the scene.");
 
-    GetKnobManager().InitKnob(&pEnableSpheres, "enable-spheres", true);
+    GetKnobManager().InitKnob(&pEnableSpheres, "enable-spheres", false);
     pEnableSpheres->SetDisplayName("Enable Spheres");
     pEnableSpheres->SetFlagDescription("Enable the Spheres in the scene.");
 
@@ -111,11 +121,11 @@ void GraphicsBenchmarkApp::InitKnobs()
     pDepthTestWrite->SetFlagDescription("Enable depth test and depth write for spheres.");
     pDepthTestWrite->SetIndent(1);
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ 0, /* minValue = */ 0, kMaxFullscreenQuadsCount);
+    GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ kQuadCount, /* minValue = */ 0, kMaxFullscreenQuadsCount);
     pFullscreenQuadsCount->SetDisplayName("Number of Fullscreen Quads");
     pFullscreenQuadsCount->SetFlagDescription("Select the number of fullscreen quads to render.");
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsType, "fullscreen-quads-type", 0, kFullscreenQuadsTypes);
+    GetKnobManager().InitKnob(&pFullscreenQuadsType, "fullscreen-quads-type", 2, kFullscreenQuadsTypes);
     pFullscreenQuadsType->SetDisplayName("Type");
     pFullscreenQuadsType->SetFlagDescription("Select the type of the fullscreen quads. See also `--fullscreen-quads-count`.");
     pFullscreenQuadsType->SetIndent(1);
@@ -168,7 +178,7 @@ void GraphicsBenchmarkApp::InitKnobs()
                 std::pair<int, int>(res.first * 2, res.second),
             });
         }
-        GetKnobManager().InitKnob(&pResolution, "offscreen-framebuffer-resolution", 0, resolutions);
+        GetKnobManager().InitKnob(&pResolution, "offscreen-framebuffer-resolution", 2, resolutions);
         pResolution->SetDisplayName("Framebuffer resolution");
         pResolution->SetFlagDescription("Select the size of offscreen framebuffer.");
         pResolution->SetIndent(1);
@@ -187,7 +197,7 @@ void GraphicsBenchmarkApp::Config(ppx::ApplicationSettings& settings)
 #if defined(PPX_BUILD_XR)
     // XR specific settings
     settings.grfx.pacedFrameRate   = 0;
-    settings.xr.enable             = false; // Change this to true to enable the XR mode
+    settings.xr.enable             = true; // Change this to true to enable the XR mode
     settings.xr.enableDebugCapture = false;
 #endif
     settings.standardKnobsDefaultValue.enableMetrics        = true;
@@ -221,12 +231,41 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.maxLod                  = FLT_MAX;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mLinearSampler));
     }
+    {
+        grfx::SamplerCreateInfo samplerCreateInfo = {};
+        samplerCreateInfo.magFilter               = grfx::FILTER_NEAREST;
+        samplerCreateInfo.minFilter               = grfx::FILTER_NEAREST;
+        samplerCreateInfo.mipmapMode              = grfx::SAMPLER_MIPMAP_MODE_NEAREST;
+        samplerCreateInfo.minLod                  = 0;
+        samplerCreateInfo.maxLod                  = FLT_MAX;
+        PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mPointSampler));
+    }
+
+    for (uint32_t k = 0; k < kYuvImageCount; ++k) {
+        grfx::SamplerCreateInfo samplerCreateInfo = {};
+        samplerCreateInfo.magFilter               = grfx::FILTER_LINEAR;
+        samplerCreateInfo.minFilter               = grfx::FILTER_LINEAR;
+        samplerCreateInfo.mipmapMode              = grfx::SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerCreateInfo.addressModeU            = grfx::SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.addressModeV            = grfx::SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.addressModeW            = grfx::SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCreateInfo.mipLodBias              = 0.0f;
+        samplerCreateInfo.anisotropyEnable        = false;
+        samplerCreateInfo.compareEnable           = false;
+        samplerCreateInfo.minLod                  = 0.0f;
+        samplerCreateInfo.maxLod                  = 1.0f;
+        samplerCreateInfo.borderColor             = grfx::BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+        samplerCreateInfo.maxLod                  = 1.0f;
+        samplerCreateInfo.isYuv                   = true;
+        PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mYuvSampler[k]));
+    }
     // Descriptor Pool
     {
         grfx::DescriptorPoolCreateInfo createInfo = {};
-        createInfo.sampler                        = 5 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for blit
-        createInfo.sampledImage                   = 6 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for quads, 1 for blit
-        createInfo.uniformBuffer                  = 2 * GetNumFramesInFlight(); // 1 for skybox, 1 for spheres
+        createInfo.sampler                        = 20 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for blit
+        createInfo.sampledImage                   = 20 * GetNumFramesInFlight(); // 1 for skybox, 3 for spheres, 1 for quads, 1 for blit
+        createInfo.uniformBuffer                  = 2 * GetNumFramesInFlight();  // 1 for skybox, 1 for spheres
+        createInfo.structuredBuffer               = 1;                           // 1 quad dummy
 
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorPool(&createInfo, &mDescriptorPool));
     }
@@ -292,7 +331,7 @@ void GraphicsBenchmarkApp::Setup()
 
     {
         OffscreenFrame frame = {};
-        PPX_CHECKED_CALL(CreateOffscreenFrame(frame, RenderFormat(), GetSwapchain()->GetDepthFormat(), GetSwapchain()->GetWidth(), GetSwapchain()->GetHeight()));
+        PPX_CHECKED_CALL(CreateOffscreenFrame(frame, RenderFormat(), grfx::Format::FORMAT_UNDEFINED /*GetSwapchain()->GetDepthFormat()*/, GetSwapchain()->GetWidth(), GetSwapchain()->GetHeight()));
         mOffscreenFrame.push_back(frame);
     }
 }
@@ -305,9 +344,17 @@ void GraphicsBenchmarkApp::SetupMetrics()
         mMetricsData.metrics[MetricsData::kTypeCPUSubmissionTime] = AddMetric(metadata);
         PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeCPUSubmissionTime] != ppx::metrics::kInvalidMetricID, "Failed to add CPU Submission Time metric");
 
-        metadata                                          = {ppx::metrics::MetricType::GAUGE, "Bandwidth", "GB/s", ppx::metrics::MetricInterpretation::HIGHER_IS_BETTER, {0.f, 10000.f}};
-        mMetricsData.metrics[MetricsData::kTypeBandwidth] = AddMetric(metadata);
-        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Bandwidth metric");
+        metadata                                               = {ppx::metrics::MetricType::GAUGE, "Write Bandwidth", "GB/s", ppx::metrics::MetricInterpretation::HIGHER_IS_BETTER, {0.f, 10000.f}};
+        mMetricsData.metrics[MetricsData::kTypeWriteBandwidth] = AddMetric(metadata);
+        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Write Bandwidth metric");
+
+        metadata                                              = {ppx::metrics::MetricType::GAUGE, "Read Bandwidth", "GB/s", ppx::metrics::MetricInterpretation::HIGHER_IS_BETTER, {0.f, 10000.f}};
+        mMetricsData.metrics[MetricsData::kTypeReadBandwidth] = AddMetric(metadata);
+        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeReadBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Read Bandwidth metric");
+
+        metadata                                               = {ppx::metrics::MetricType::GAUGE, "Total Bandwidth", "GB/s", ppx::metrics::MetricInterpretation::HIGHER_IS_BETTER, {0.f, 10000.f}};
+        mMetricsData.metrics[MetricsData::kTypeTotalBandwidth] = AddMetric(metadata);
+        PPX_ASSERT_MSG(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth] != ppx::metrics::kInvalidMetricID, "Failed to add Total Bandwidth metric");
     }
 }
 
@@ -337,14 +384,39 @@ void GraphicsBenchmarkApp::UpdateMetrics()
 
     if (quadCount) {
         if (mSkipRecordBandwidthMetricFrameCounter == 0) {
-            const auto  texelSize     = static_cast<float>(grfx::GetFormatDescription(colorFormat)->bytesPerTexel);
-            const float dataWriteInGb = (static_cast<float>(width) * static_cast<float>(height) * texelSize * quadCount) / (1024.f * 1024.f * 1024.f);
-            const float bandwidth     = dataWriteInGb / gpuWorkDurationInSec;
+            // Write Bandwidth: only valid when there is only write
+            const auto  writePixelSize = static_cast<float>(grfx::GetFormatDescription(colorFormat)->bytesPerTexel);
+            const float dataWriteInGb  = (static_cast<float>(width) * static_cast<float>(height) * writePixelSize * quadCount) / (1024.f * 1024.f * 1024.f);
+            {
+                const float              writeBandwidth = dataWriteInGb / gpuWorkDurationInSec;
+                ppx::metrics::MetricData data           = {ppx::metrics::MetricType::GAUGE};
+                data.gauge.seconds                      = GetElapsedSeconds();
+                data.gauge.value                        = writeBandwidth;
+                RecordMetricData(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth], data);
+            }
 
-            ppx::metrics::MetricData data = {ppx::metrics::MetricType::GAUGE};
-            data.gauge.seconds            = GetElapsedSeconds();
-            data.gauge.value              = bandwidth;
-            RecordMetricData(mMetricsData.metrics[MetricsData::kTypeBandwidth], data);
+            // Read Bandwidth: only valid when there is only read
+            const auto  readTexelSize       = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
+            const float textureDataReadInGb = (static_cast<float>(kImageCount) * static_cast<float>(mQuadsTexture[0]->GetWidth()) * static_cast<float>(mQuadsTexture[0]->GetHeight()) * readTexelSize * quadCount) / (1024.f * 1024.f * 1024.f);
+            // 1.5 is because Y is in full res, UV is having 1/2W and 1/2H, so 1 + 1/2*1/2 + 1/2*1/2 = 1.5
+            const float yuvTextureDataReadInGb = (static_cast<float>(kYuvImageCount) * static_cast<float>(mYUVTexture[0]->GetWidth()) * static_cast<float>(mYUVTexture[0]->GetHeight()) * 1.5f * quadCount) / (1024.f * 1024.f * 1024.f);
+            const float dataReadInGb           = textureDataReadInGb + yuvTextureDataReadInGb;
+            {
+                const float              readBandwidth = dataReadInGb / gpuWorkDurationInSec;
+                ppx::metrics::MetricData data          = {ppx::metrics::MetricType::GAUGE};
+                data.gauge.seconds                     = GetElapsedSeconds();
+                data.gauge.value                       = readBandwidth;
+                RecordMetricData(mMetricsData.metrics[MetricsData::kTypeReadBandwidth], data);
+            }
+
+            // Total Bandwidth
+            {
+                const float              totalBandwidth = (dataReadInGb + dataWriteInGb) / gpuWorkDurationInSec;
+                ppx::metrics::MetricData data           = {ppx::metrics::MetricType::GAUGE};
+                data.gauge.seconds                      = GetElapsedSeconds();
+                data.gauge.value                        = totalBandwidth;
+                RecordMetricData(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth], data);
+            }
         }
         else {
             --mSkipRecordBandwidthMetricFrameCounter;
@@ -460,13 +532,45 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
     {
         // Large resolution image
         grfx_util::TextureOptions options = grfx_util::TextureOptions().MipLevelCount(1);
-        PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture, options));
+        for (uint32_t k = 0; k < kImageCount; ++k) {
+            PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture[k], options));
+        }
+
+        // yuv texture
+        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
+            PPX_CHECKED_CALL(CreateYUVTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(kYUVTextureFile), kYuvWidth, kYuvHeight, &mYUVTexture[k], options));
+        }
+    }
+
+    // dummy buffers
+    {
+        grfx::BufferCreateInfo bufferCreateInfo             = {};
+        bufferCreateInfo.size                               = PPX_MINIMUM_STRUCTURED_BUFFER_SIZE;
+        bufferCreateInfo.structuredElementStride            = static_cast<uint32_t>(sizeof(float));
+        bufferCreateInfo.usageFlags.bits.rwStructuredBuffer = true;
+        bufferCreateInfo.memoryUsage                        = grfx::MEMORY_USAGE_GPU_ONLY;
+        bufferCreateInfo.initialState                       = grfx::RESOURCE_STATE_GENERAL;
+        PPX_CHECKED_CALL(GetDevice()->CreateBuffer(&bufferCreateInfo, &mQuadsDummyBuffer));
     }
 
     // Descriptor set layout for texture shader
     {
+        PPX_ASSERT_MSG((QUADS_SAMPLED_YUV_IMAGE_REGISTER_START - QUADS_SAMPLED_IMAGE_REGISTER_START) >= kImageCount, "Need to have enough slot for regular textures");
+
         grfx::DescriptorSetLayoutCreateInfo layoutCreateInfo = {};
-        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_DUMMY_BUFFER_REGISTER, grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER));
+        layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_POINT_SAMPLER_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLER));
+
+        for (uint32_t k = 0; k < kImageCount; ++k) {
+            layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE_REGISTER_START + k, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
+        }
+
+        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
+            auto yuvbinding = grfx::DescriptorBinding(QUADS_SAMPLED_YUV_IMAGE_REGISTER_START + k, grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+            yuvbinding.immutableSamplers.push_back(mYuvSampler[k]);
+            layoutCreateInfo.bindings.push_back(yuvbinding);
+        }
+
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mFullscreenQuads.descriptorSetLayout));
     }
 
@@ -488,6 +592,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
 
 void GraphicsBenchmarkApp::UpdateSkyBoxDescriptors()
 {
+    GetDevice()->WaitIdle();
     uint32_t n = GetNumFramesInFlight();
     for (size_t i = 0; i < n; i++) {
         grfx::DescriptorSetPtr pDescriptorSet = mSkyBox.descriptorSets[i];
@@ -499,6 +604,7 @@ void GraphicsBenchmarkApp::UpdateSkyBoxDescriptors()
 
 void GraphicsBenchmarkApp::UpdateSphereDescriptors()
 {
+    GetDevice()->WaitIdle();
     uint32_t n = GetNumFramesInFlight();
     for (size_t i = 0; i < n; i++) {
         grfx::DescriptorSetPtr pDescriptorSet = mSphere.descriptorSets[i];
@@ -524,10 +630,37 @@ void GraphicsBenchmarkApp::UpdateSphereDescriptors()
 
 void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
 {
+    GetDevice()->WaitIdle();
     uint32_t n = GetNumFramesInFlight();
+
     for (size_t i = 0; i < n; i++) {
         grfx::DescriptorSetPtr pDescriptorSet = mFullscreenQuads.descriptorSets[i];
-        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE_REGISTER, 0, mQuadsTexture));
+
+        grfx::WriteDescriptor write  = {};
+        write.binding                = QUADS_DUMMY_BUFFER_REGISTER;
+        write.arrayIndex             = 0;
+        write.type                   = grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER;
+        write.bufferOffset           = 0;
+        write.bufferRange            = PPX_WHOLE_SIZE;
+        write.structuredElementCount = 1;
+        write.pBuffer                = mQuadsDummyBuffer;
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(1, &write));
+
+        PPX_CHECKED_CALL(pDescriptorSet->UpdateSampler(QUADS_POINT_SAMPLER_REGISTER, 0, mPointSampler));
+
+        for (uint32_t k = 0; k < kImageCount; ++k) {
+            PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE_REGISTER_START + k, 0, mQuadsTexture[k]));
+        }
+
+        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
+            grfx::WriteDescriptor write = {};
+            write.binding               = QUADS_SAMPLED_YUV_IMAGE_REGISTER_START + k;
+            write.arrayIndex            = 0;
+            write.type                  = grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            write.pImageView            = mYUVTexture[k]->GetSampledImageView();
+            write.pSampler              = mYuvSampler[k];
+            PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(1, &write));
+        }
     }
 }
 
@@ -577,9 +710,9 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsMeshes()
     std::vector<float> vertexData = {
         // one large triangle covering entire screen area
         // position
-        -1.0f, -1.0f, 0.0f,
-        -1.0f,  3.0f, 0.0f,
-         3.0f, -1.0f, 0.0f,
+        -1.0f, -1.0f, 0.0f, 0.f, 1.f,
+        -1.0f,  3.0f, 0.0f, 0.f, -1.f,
+         3.0f, -1.0f, 0.0f, 2.f, 1.f
     };
     // clang-format on
     uint32_t dataSize = SizeInBytesU32(vertexData);
@@ -598,6 +731,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsMeshes()
     mFullscreenQuads.vertexBuffer->UnmapMemory();
 
     mFullscreenQuads.vertexBinding.AppendAttribute({"POSITION", 0, grfx::FORMAT_R32G32B32_FLOAT, 0, PPX_APPEND_OFFSET_ALIGNED, grfx::VERTEX_INPUT_RATE_VERTEX});
+    mFullscreenQuads.vertexBinding.AppendAttribute({"TEXCOORD", 1, grfx::FORMAT_R32G32_FLOAT, 0, PPX_APPEND_OFFSET_ALIGNED, grfx::VERTEX_INPUT_RATE_VERTEX});
 }
 
 void GraphicsBenchmarkApp::SetupSkyBoxPipelines()
@@ -727,10 +861,10 @@ Result GraphicsBenchmarkApp::CompilePipeline(const QuadPipelineKey& key)
     gpCreateInfo.frontFace                          = grfx::FRONT_FACE_CW;
     gpCreateInfo.depthReadEnable                    = false;
     gpCreateInfo.depthWriteEnable                   = false;
-    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE;
+    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE; // grfx::BLEND_MODE_OUTPUT_DISABLED;
     gpCreateInfo.outputState.renderTargetCount      = 1;
     gpCreateInfo.outputState.renderTargetFormats[0] = key.renderFormat;
-    gpCreateInfo.outputState.depthStencilFormat     = GetSwapchain()->GetDepthFormat();
+    gpCreateInfo.outputState.depthStencilFormat     = grfx::FORMAT_UNDEFINED;
     gpCreateInfo.pPipelineInterface                 = mQuadsPipelineInterfaces[quadTypeIndex];
 
     grfx::GraphicsPipelinePtr pipeline = nullptr;
@@ -834,7 +968,7 @@ void GraphicsBenchmarkApp::UpdateOffscreenBuffer(grfx::Format format, int w, int
     GetDevice()->WaitIdle();
     for (auto& frame : mOffscreenFrame) {
         DestroyOffscreenFrame(frame);
-        PPX_CHECKED_CALL(CreateOffscreenFrame(frame, format, GetSwapchain()->GetDepthFormat(), w, h));
+        PPX_CHECKED_CALL(CreateOffscreenFrame(frame, format, grfx::Format::FORMAT_UNDEFINED /*GetSwapchain()->GetDepthFormat()*/, w, h));
     }
 }
 
@@ -1300,20 +1434,59 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
         ImGui::NextColumn();
 
         if (HasActiveMetricsRun()) {
-            const auto bandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeBandwidth]);
-            ImGui::Text("Average Write Bandwidth");
+            // Write bandwidth is only valid when there is only write
+            // if (pFullscreenQuadsType->GetIndex() != 2)
+            {
+                const auto writeBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth]);
+                ImGui::Text("Average Write Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", writeBandwidth.average);
+                ImGui::NextColumn();
+
+                ImGui::Text("Min Write Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", writeBandwidth.min);
+                ImGui::NextColumn();
+
+                ImGui::Text("Max Write Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", writeBandwidth.max);
+                ImGui::NextColumn();
+            }
+            // else
+            {
+                // Read bandwidth is only valid when there is only read
+                const auto readBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeReadBandwidth]);
+                ImGui::Text("Average Read Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", readBandwidth.average);
+                ImGui::NextColumn();
+
+                ImGui::Text("Min Read Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", readBandwidth.min);
+                ImGui::NextColumn();
+
+                ImGui::Text("Max Read Bandwidth");
+                ImGui::NextColumn();
+                ImGui::Text("%.2f GB/s", readBandwidth.max);
+                ImGui::NextColumn();
+            }
+
+            const auto totalBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth]);
+            ImGui::Text("Average Total Bandwidth");
             ImGui::NextColumn();
-            ImGui::Text("%.2f GB/s", bandwidth.average);
+            ImGui::Text("%.2f GB/s", totalBandwidth.average);
             ImGui::NextColumn();
 
-            ImGui::Text("Min Write Bandwidth");
+            ImGui::Text("Min Total Bandwidth");
             ImGui::NextColumn();
-            ImGui::Text("%.2f GB/s", bandwidth.min);
+            ImGui::Text("%.2f GB/s", totalBandwidth.min);
             ImGui::NextColumn();
 
-            ImGui::Text("Max Write Bandwidth");
+            ImGui::Text("Max Total Bandwidth");
             ImGui::NextColumn();
-            ImGui::Text("%.2f GB/s", bandwidth.max);
+            ImGui::Text("%.2f GB/s", totalBandwidth.max);
             ImGui::NextColumn();
         }
     }
@@ -1356,7 +1529,7 @@ ppx::Result GraphicsBenchmarkApp::CreateBlitContext(BlitContext& blit)
         createInfo.sets[0].pLayout                = blit.descriptorSetLayout;
         createInfo.renderTargetCount              = 1;
         createInfo.renderTargetFormats[0]         = GetSwapchain()->GetColorFormat();
-        createInfo.depthStencilFormat             = GetSwapchain()->GetDepthFormat();
+        createInfo.depthStencilFormat             = grfx::FORMAT_UNDEFINED;
 
         PPX_CHECKED_CALL(GetDevice()->CreateFullscreenQuad(&createInfo, &blit.quad));
     }
@@ -1386,13 +1559,15 @@ void GraphicsBenchmarkApp::DestroyOffscreenFrame(OffscreenFrame& frame)
     for (auto& rtv : frame.renderTargetViews) {
         GetDevice()->DestroyRenderTargetView(rtv);
     }
-    GetDevice()->DestroyDepthStencilView(frame.depthStencilView);
+    if (frame.depthStencilView) {
+        GetDevice()->DestroyDepthStencilView(frame.depthStencilView);
+        GetDevice()->DestroyImage(frame.depthImage);
+    }
 
     GetDevice()->FreeDescriptorSet(frame.blitDescriptorSet);
     GetDevice()->DestroyTexture(frame.blitSource);
 
     GetDevice()->DestroyImage(frame.colorImage);
-    GetDevice()->DestroyImage(frame.depthImage);
 
     // Reset all the pointers to nullptr.
     frame = {};

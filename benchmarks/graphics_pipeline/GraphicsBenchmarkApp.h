@@ -40,6 +40,10 @@ static constexpr uint32_t kDebugColorPushConstantCount = sizeof(float4) / sizeof
 
 static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
+static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv.raw";
+
+static constexpr uint32_t kImageCount    = 4;
+static constexpr uint32_t kYuvImageCount = 1;
 
 enum class DebugView
 {
@@ -166,7 +170,11 @@ static constexpr std::array<grfx::Format, 13> kFramebufferFormatTypes = {
     grfx::Format::FORMAT_R16G16_UNORM,
 };
 
-static constexpr std::array<std::pair<int, int>, 1 + 8> kSimpleResolutions = {{
+static constexpr std::array<std::pair<int, int>, 3 + 1 + 8> kSimpleResolutions = {{
+    // TODO(wangra): hack to add resolutions for testing
+    {3552, 3840},
+    {2664, 2880},
+    {3152, 3840},
     // 1x1
     {1, 1},
     // 2^n square
@@ -197,6 +205,7 @@ static constexpr std::array<std::pair<int, int>, 6 + 5 + 2> kCommonResolutions =
     // Other common display resolution
     {3840, 1600}, // 4K ultrawide
     {5120, 2160}, // 5K ultrawide
+
 }};
 
 static constexpr std::array<std::pair<int, int>, 8 + 9> kVRPerEyeResolutions = {{
@@ -439,6 +448,8 @@ private:
     bool                              mEnableMouseMovement = true;
     RealtimeValue<uint64_t, float>    mGpuWorkDuration;
     grfx::SamplerPtr                  mLinearSampler;
+    grfx::SamplerPtr                  mPointSampler;
+    grfx::SamplerPtr                  mYuvSampler[kYuvImageCount];
     grfx::DescriptorPoolPtr           mDescriptorPool;
     std::vector<OffscreenFrame>       mOffscreenFrame;
     RealtimeValue<double>             mCPUSubmissionTime;
@@ -470,7 +481,9 @@ private:
     // Fullscreen quads resources
     Entity2D                                                             mFullscreenQuads;
     grfx::ShaderModulePtr                                                mVSQuads;
-    grfx::TexturePtr                                                     mQuadsTexture;
+    grfx::TexturePtr                                                     mQuadsTexture[kImageCount];
+    grfx::TexturePtr                                                     mYUVTexture[kYuvImageCount];
+    grfx::BufferPtr                                                      mQuadsDummyBuffer;
     QuadPipelineMap                                                      mQuadsPipelines;
     std::array<grfx::PipelineInterfacePtr, kFullscreenQuadsTypes.size()> mQuadsPipelineInterfaces;
     std::array<grfx::ShaderModulePtr, kFullscreenQuadsTypes.size()>      mQuadsPs;
@@ -482,7 +495,9 @@ private:
         enum MetricsType : size_t
         {
             kTypeCPUSubmissionTime = 0,
-            kTypeBandwidth,
+            kTypeWriteBandwidth,
+            kTypeReadBandwidth,
+            kTypeTotalBandwidth,
             kCount
         };
 
