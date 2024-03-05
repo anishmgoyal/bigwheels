@@ -39,10 +39,10 @@ static constexpr float4   kDefaultDrawCallColor        = float4(1.0f, 0.175f, 0.
 static constexpr uint32_t kDebugColorPushConstantCount = sizeof(float4) / sizeof(uint32_t);
 
 static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
-static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
+static constexpr const char* kQuadTextureFile = "benchmarks/textures/surfaceflinger.jpg";
 static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv.raw";
 
-static constexpr uint32_t kImageCount    = 4;
+static constexpr uint32_t kImageCount    = 9;
 static constexpr uint32_t kYuvImageCount = 1;
 
 enum class DebugView
@@ -505,7 +505,7 @@ private:
     };
     MetricsData mMetricsData;
     // This is used to skip first several frames after the knob of quad count being changed
-    uint32_t mSkipRecordBandwidthMetricFrameCounter = 0;
+    uint32_t mSkipRecordBandwidthMetricFrameCounter = 1;
 
 private:
     std::shared_ptr<KnobCheckbox>              pEnableSkyBox;

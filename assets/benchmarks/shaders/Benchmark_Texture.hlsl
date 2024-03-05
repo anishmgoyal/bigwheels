@@ -95,7 +95,7 @@ float4 psmain(VSOutputPos input) : SV_TARGET
     float4 c8 = Tex8.SampleLevel(pointsampler, input.texcoord, 0);
     float4 c9 = Tex9.SampleLevel(pointsampler, input.texcoord, 0);
 
-    float4 sum_c = (c0 + c1  + c2  + c3/* + c4 + c5 + c6+ c7 + c8 + c9*/)/6.f ;
+    float4 sum_c = (c0 + c1  + c2  + c3 + c4 + c5 + c6+ c7 + c8/* + c9*/)/6.f ;
 
     float4 cYUV0 = YUVTex0.SampleLevel(yuvsampler0, input.texcoord, 0);
     float4 cYUV1 = YUVTex1.SampleLevel(yuvsampler1, input.texcoord, 0);

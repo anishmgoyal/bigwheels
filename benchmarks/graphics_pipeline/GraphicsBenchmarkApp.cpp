@@ -44,7 +44,7 @@ static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 12;
 const uint32_t kYuvWidth  = 3000; // 3152;
 const uint32_t kYuvHeight = 3000; // 3840;
 
-const uint32_t kQuadCount = 750;
+const uint32_t kQuadCount = 350;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -125,12 +125,12 @@ void GraphicsBenchmarkApp::InitKnobs()
     pFullscreenQuadsCount->SetDisplayName("Number of Fullscreen Quads");
     pFullscreenQuadsCount->SetFlagDescription("Select the number of fullscreen quads to render.");
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsType, "fullscreen-quads-type", 2, kFullscreenQuadsTypes);
+    GetKnobManager().InitKnob(&pFullscreenQuadsType, "fullscreen-quads-type", 1, kFullscreenQuadsTypes);
     pFullscreenQuadsType->SetDisplayName("Type");
     pFullscreenQuadsType->SetFlagDescription("Select the type of the fullscreen quads. See also `--fullscreen-quads-count`.");
     pFullscreenQuadsType->SetIndent(1);
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsColor, "fullscreen-quads-color", 0, kFullscreenQuadsColors);
+    GetKnobManager().InitKnob(&pFullscreenQuadsColor, "fullscreen-quads-color", 3, kFullscreenQuadsColors);
     pFullscreenQuadsColor->SetDisplayName("Color");
     pFullscreenQuadsColor->SetFlagDescription("Select the hue for the solid color fullscreen quads. See also `--fullscreen-quads-count`.");
     pFullscreenQuadsColor->SetIndent(2);
@@ -1452,6 +1452,14 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
                 ImGui::NextColumn();
                 ImGui::Text("%.2f GB/s", writeBandwidth.max);
                 ImGui::NextColumn();
+
+                // Also, log this info.
+                PPX_LOG_INFO(
+                    "Average GPU Write Bandwidth: " <<
+                    std::fixed << std::setprecision(2) <<
+                    writeBandwidth.average <<
+                    " GB/s, Min: " << writeBandwidth.min << " GB/s, Max: " <<
+                    writeBandwidth.max << "GB/s");
             }
             // else
             {
@@ -1471,6 +1479,14 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
                 ImGui::NextColumn();
                 ImGui::Text("%.2f GB/s", readBandwidth.max);
                 ImGui::NextColumn();
+
+                // Also, log this info.
+                // PPX_LOG_INFO(
+                //     "Average GPU Read Bandwidth: " <<
+                //     std::fixed << std::setprecision(2) <<
+                //     readBandwidth.average <<
+                //     " GB/s, Min: " << readBandwidth.min << " GB/s, Max: " <<
+                //     readBandwidth.max << "GB/s");
             }
 
             const auto totalBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth]);
