@@ -44,7 +44,7 @@ static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 12;
 const uint32_t kYuvWidth  = 3000; // 3152;
 const uint32_t kYuvHeight = 3000; // 3840;
 
-const uint32_t kQuadCount = 750;
+const uint32_t kQuadCount = 350;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -861,7 +861,7 @@ Result GraphicsBenchmarkApp::CompilePipeline(const QuadPipelineKey& key)
     gpCreateInfo.frontFace                          = grfx::FRONT_FACE_CW;
     gpCreateInfo.depthReadEnable                    = false;
     gpCreateInfo.depthWriteEnable                   = false;
-    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE; // grfx::BLEND_MODE_OUTPUT_DISABLED;
+    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_OUTPUT_DISABLED;  // grfx::BLEND_MODE_NONE;
     gpCreateInfo.outputState.renderTargetCount      = 1;
     gpCreateInfo.outputState.renderTargetFormats[0] = key.renderFormat;
     gpCreateInfo.outputState.depthStencilFormat     = grfx::FORMAT_UNDEFINED;
@@ -1452,6 +1452,14 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
                 ImGui::NextColumn();
                 ImGui::Text("%.2f GB/s", writeBandwidth.max);
                 ImGui::NextColumn();
+
+                // Also, log this info.
+                PPX_LOG_INFO(
+                    "Average GPU Write Bandwidth: " <<
+                    std::fixed << std::setprecision(2) <<
+                    writeBandwidth.average <<
+                    " GB/s, Min: " << writeBandwidth.min << " GB/s, Max: " <<
+                    writeBandwidth.max << "GB/s");
             }
             // else
             {
@@ -1471,6 +1479,14 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
                 ImGui::NextColumn();
                 ImGui::Text("%.2f GB/s", readBandwidth.max);
                 ImGui::NextColumn();
+
+                // Also, log this info.
+                PPX_LOG_INFO(
+                    "Average GPU Read Bandwidth: " <<
+                    std::fixed << std::setprecision(2) <<
+                    readBandwidth.average <<
+                    " GB/s, Min: " << readBandwidth.min << " GB/s, Max: " <<
+                    readBandwidth.max << "GB/s");
             }
 
             const auto totalBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth]);
