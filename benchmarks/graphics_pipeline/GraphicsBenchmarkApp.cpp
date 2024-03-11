@@ -21,6 +21,13 @@
 
 using namespace ppx;
 
+// Push constants are measured in number of DWORDs, or essentially,
+// number of bytes / 4. This constant is used for calculating the number
+// of push constants being pushed, based on a count of bytes. Please note:
+// this calculation assumes that the number of constants being pushed has a
+// byte count that is a multiple of 4.
+static constexpr size_t DWORD_SIZE = 4;
+
 static constexpr size_t SKYBOX_UNIFORM_BUFFER_REGISTER = 0;
 static constexpr size_t SKYBOX_SAMPLED_IMAGE_REGISTER  = 1;
 static constexpr size_t SKYBOX_SAMPLER_REGISTER        = 2;
@@ -34,10 +41,10 @@ static constexpr size_t SPHERE_NORMAL_SAMPLER_REGISTER                = 5;
 static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLED_IMAGE_REGISTER = 6;
 static constexpr size_t SPHERE_METAL_ROUGHNESS_SAMPLER_REGISTER       = 7;
 
+static constexpr size_t QUADS_TEXTURE_COUNT_REGISTER = 0;
 static constexpr size_t QUADS_DUMMY_BUFFER_REGISTER  = 0;
 static constexpr size_t QUADS_POINT_SAMPLER_REGISTER = 1;
-
-static constexpr size_t QUADS_SAMPLED_IMAGE_REGISTER_START     = 2;
+static constexpr size_t QUADS_SAMPLED_RGB_IMAGE_REGISTER_START = 2;
 static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 12;
 
 // PT texture is 3000 x 2 x 3000
@@ -124,6 +131,14 @@ void GraphicsBenchmarkApp::InitKnobs()
     GetKnobManager().InitKnob(&pFullscreenQuadsCount, "fullscreen-quads-count", /* defaultValue = */ kQuadCount, /* minValue = */ 0, kMaxFullscreenQuadsCount);
     pFullscreenQuadsCount->SetDisplayName("Number of Fullscreen Quads");
     pFullscreenQuadsCount->SetFlagDescription("Select the number of fullscreen quads to render.");
+
+    GetKnobManager().InitKnob(&pFullscreenQuadsRgbTextureCount, "fullscreen-quads-rgb-tex-count", /*defaultValue=*/kMaxRgbImages/2, /*minValue=*/0, kMaxRgbImages);
+    pFullscreenQuadsRgbTextureCount->SetDisplayName("Number of RGB Textures for Fullscreen Quads");
+    pFullscreenQuadsRgbTextureCount->SetFlagDescription("Replicates the RGB texture (if the quads type is 'Texture'), simulating larger texture read volume.");
+
+    GetKnobManager().InitKnob(&pFullscreenQuadsYuvTextureCount, "fullscreen-quads-yuv-tex-count", /*defaultValue=*/kMaxYuvImages/2, /*minValue=*/0, kMaxYuvImages);
+    pFullscreenQuadsYuvTextureCount->SetDisplayName("Number of YUV Textures for Fullscreen Quads");
+    pFullscreenQuadsYuvTextureCount->SetFlagDescription("Replicates a YUV texture (if the quads type is 'Texture'), simulating larger texture read volume.");
 
     GetKnobManager().InitKnob(&pFullscreenQuadsType, "fullscreen-quads-type", 2, kFullscreenQuadsTypes);
     pFullscreenQuadsType->SetDisplayName("Type");
@@ -241,7 +256,7 @@ void GraphicsBenchmarkApp::Setup()
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mPointSampler));
     }
 
-    for (uint32_t k = 0; k < kYuvImageCount; ++k) {
+    for (uint32_t k = 0; k < kMaxYuvImages; ++k) {
         grfx::SamplerCreateInfo samplerCreateInfo = {};
         samplerCreateInfo.magFilter               = grfx::FILTER_LINEAR;
         samplerCreateInfo.minFilter               = grfx::FILTER_LINEAR;
@@ -259,6 +274,7 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.isYuv                   = true;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mYuvSampler[k]));
     }
+
     // Descriptor Pool
     {
         grfx::DescriptorPoolCreateInfo createInfo = {};
@@ -397,9 +413,9 @@ void GraphicsBenchmarkApp::UpdateMetrics()
 
             // Read Bandwidth: only valid when there is only read
             const auto  readTexelSize       = static_cast<float>(grfx::GetFormatDescription(grfx::FORMAT_R8G8B8A8_UNORM)->bytesPerTexel);
-            const float textureDataReadInGb = (static_cast<float>(kImageCount) * static_cast<float>(mQuadsTexture[0]->GetWidth()) * static_cast<float>(mQuadsTexture[0]->GetHeight()) * readTexelSize * quadCount) / (1024.f * 1024.f * 1024.f);
+            const float textureDataReadInGb = (static_cast<float>(mBoundRgbTextureCount) * static_cast<float>(mQuadsTexture[0]->GetWidth()) * static_cast<float>(mQuadsTexture[0]->GetHeight()) * readTexelSize * quadCount) / (1024.f * 1024.f * 1024.f);
             // 1.5 is because Y is in full res, UV is having 1/2W and 1/2H, so 1 + 1/2*1/2 + 1/2*1/2 = 1.5
-            const float yuvTextureDataReadInGb = (static_cast<float>(kYuvImageCount) * static_cast<float>(mYUVTexture[0]->GetWidth()) * static_cast<float>(mYUVTexture[0]->GetHeight()) * 1.5f * quadCount) / (1024.f * 1024.f * 1024.f);
+            const float yuvTextureDataReadInGb = (static_cast<float>(mBoundYuvTextureCount) * static_cast<float>(mYUVTexture[0]->GetWidth()) * static_cast<float>(mYUVTexture[0]->GetHeight()) * 1.5f * quadCount) / (1024.f * 1024.f * 1024.f);
             const float dataReadInGb           = textureDataReadInGb + yuvTextureDataReadInGb;
             {
                 const float              readBandwidth = dataReadInGb / gpuWorkDurationInSec;
@@ -532,12 +548,12 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
     {
         // Large resolution image
         grfx_util::TextureOptions options = grfx_util::TextureOptions().MipLevelCount(1);
-        for (uint32_t k = 0; k < kImageCount; ++k) {
+        for (uint32_t k = 0; k < kMaxRgbImages; ++k) {
             PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture[k], options));
         }
 
         // yuv texture
-        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
+        for (uint32_t k = 0; k < kMaxYuvImages; ++k) {
             PPX_CHECKED_CALL(CreateYUVTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(kYUVTextureFile), kYuvWidth, kYuvHeight, &mYUVTexture[k], options));
         }
     }
@@ -555,21 +571,30 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
 
     // Descriptor set layout for texture shader
     {
-        PPX_ASSERT_MSG((QUADS_SAMPLED_YUV_IMAGE_REGISTER_START - QUADS_SAMPLED_IMAGE_REGISTER_START) >= kImageCount, "Need to have enough slot for regular textures");
+        PPX_ASSERT_MSG(
+            (QUADS_SAMPLED_YUV_IMAGE_REGISTER_START - QUADS_SAMPLED_RGB_IMAGE_REGISTER_START) >= kMaxRgbImages,
+            "Need to have enough slot for regular textures");
 
         grfx::DescriptorSetLayoutCreateInfo layoutCreateInfo = {};
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_DUMMY_BUFFER_REGISTER, grfx::DESCRIPTOR_TYPE_RW_STRUCTURED_BUFFER));
         layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_POINT_SAMPLER_REGISTER, grfx::DESCRIPTOR_TYPE_SAMPLER));
 
-        for (uint32_t k = 0; k < kImageCount; ++k) {
-            layoutCreateInfo.bindings.push_back(grfx::DescriptorBinding(QUADS_SAMPLED_IMAGE_REGISTER_START + k, grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE));
-        }
+        grfx::DescriptorBinding rgbTextureBinding = grfx::DescriptorBinding(
+            QUADS_SAMPLED_RGB_IMAGE_REGISTER_START,
+            grfx::DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            kMaxRgbImages);
+        rgbTextureBinding.flags.bits.partiallyBound = true;
+        layoutCreateInfo.bindings.push_back(rgbTextureBinding);
 
-        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
-            auto yuvbinding = grfx::DescriptorBinding(QUADS_SAMPLED_YUV_IMAGE_REGISTER_START + k, grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-            yuvbinding.immutableSamplers.push_back(mYuvSampler[k]);
-            layoutCreateInfo.bindings.push_back(yuvbinding);
+        grfx::DescriptorBinding yuvTextureBinding = grfx::DescriptorBinding(
+            QUADS_SAMPLED_YUV_IMAGE_REGISTER_START,
+            grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            kMaxYuvImages);
+        yuvTextureBinding.flags.bits.partiallyBound = true;
+        for (uint32_t k = 0; k < kMaxYuvImages; ++k) {
+            yuvTextureBinding.immutableSamplers.push_back(mYuvSampler[k]);
         }
+        layoutCreateInfo.bindings.push_back(yuvTextureBinding);
 
         PPX_CHECKED_CALL(GetDevice()->CreateDescriptorSetLayout(&layoutCreateInfo, &mFullscreenQuads.descriptorSetLayout));
     }
@@ -648,18 +673,24 @@ void GraphicsBenchmarkApp::UpdateFullscreenQuadsDescriptors()
 
         PPX_CHECKED_CALL(pDescriptorSet->UpdateSampler(QUADS_POINT_SAMPLER_REGISTER, 0, mPointSampler));
 
-        for (uint32_t k = 0; k < kImageCount; ++k) {
-            PPX_CHECKED_CALL(pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_IMAGE_REGISTER_START + k, 0, mQuadsTexture[k]));
+        mBoundRgbTextureCount = pFullscreenQuadsRgbTextureCount->GetValue();
+        for (uint32_t k = 0; k < mBoundRgbTextureCount; ++k) {
+            PPX_CHECKED_CALL(
+                pDescriptorSet->UpdateSampledImage(QUADS_SAMPLED_RGB_IMAGE_REGISTER_START, k, mQuadsTexture[k]));
         }
 
-        for (uint32_t k = 0; k < kYuvImageCount; ++k) {
-            grfx::WriteDescriptor write = {};
-            write.binding               = QUADS_SAMPLED_YUV_IMAGE_REGISTER_START + k;
-            write.arrayIndex            = 0;
-            write.type                  = grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            write.pImageView            = mYUVTexture[k]->GetSampledImageView();
-            write.pSampler              = mYuvSampler[k];
-            PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(1, &write));
+        mBoundYuvTextureCount = pFullscreenQuadsYuvTextureCount->GetValue();
+        if (mBoundYuvTextureCount > 0) {
+            std::vector<grfx::WriteDescriptor> writeDescriptors(mBoundYuvTextureCount);
+            for (uint32_t k = 0; k < mBoundYuvTextureCount; ++k) {
+                writeDescriptors[k].binding    = QUADS_SAMPLED_YUV_IMAGE_REGISTER_START;
+                writeDescriptors[k].arrayIndex = k;
+                writeDescriptors[k].type       = grfx::DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                writeDescriptors[k].pImageView = mYUVTexture[k]->GetSampledImageView();
+                writeDescriptors[k].pSampler   = mYuvSampler[k];
+            }
+            PPX_CHECKED_CALL(pDescriptorSet->UpdateDescriptors(
+                CountU32(writeDescriptors), DataPtr(writeDescriptors)));
         }
     }
 }
@@ -861,7 +892,7 @@ Result GraphicsBenchmarkApp::CompilePipeline(const QuadPipelineKey& key)
     gpCreateInfo.frontFace                          = grfx::FRONT_FACE_CW;
     gpCreateInfo.depthReadEnable                    = false;
     gpCreateInfo.depthWriteEnable                   = false;
-    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_OUTPUT_DISABLED;  // grfx::BLEND_MODE_NONE;
+    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE;  // grfx::BLEND_MODE_OUTPUT_DISABLED;
     gpCreateInfo.outputState.renderTargetCount      = 1;
     gpCreateInfo.outputState.renderTargetFormats[0] = key.renderFormat;
     gpCreateInfo.outputState.depthStencilFormat     = grfx::FORMAT_UNDEFINED;
@@ -917,7 +948,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsPipelines()
     {
         grfx::PipelineInterfaceCreateInfo piCreateInfo = {};
         piCreateInfo.setCount                          = 0;
-        piCreateInfo.pushConstants.count               = sizeof(uint32_t) / 4;
+        piCreateInfo.pushConstants.count               = sizeof(uint32_t) / DWORD_SIZE;
         piCreateInfo.pushConstants.binding             = 0;
         piCreateInfo.pushConstants.set                 = 0;
 
@@ -927,7 +958,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsPipelines()
     {
         grfx::PipelineInterfaceCreateInfo piCreateInfo = {};
         piCreateInfo.setCount                          = 0;
-        piCreateInfo.pushConstants.count               = sizeof(float3) / 4;
+        piCreateInfo.pushConstants.count               = sizeof(float3) / DWORD_SIZE;
         piCreateInfo.pushConstants.binding             = 0;
         piCreateInfo.pushConstants.set                 = 0;
 
@@ -939,6 +970,9 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsPipelines()
         piCreateInfo.setCount                          = 1;
         piCreateInfo.sets[0].set                       = 0;
         piCreateInfo.sets[0].pLayout                   = mFullscreenQuads.descriptorSetLayout;
+        piCreateInfo.pushConstants.count               = sizeof(TextureCounts) / DWORD_SIZE;
+        piCreateInfo.pushConstants.binding             = QUADS_TEXTURE_COUNT_REGISTER;
+        piCreateInfo.pushConstants.set                 = 1;
 
         PPX_CHECKED_CALL(GetDevice()->CreatePipelineInterface(&piCreateInfo, &mQuadsPipelineInterfaces[2]));
     }
@@ -1136,7 +1170,13 @@ bool GraphicsBenchmarkApp::ProcessQuadsKnobs()
     const bool typeUpdated       = pFullscreenQuadsType->DigestUpdate();
     const bool renderpassUpdated = pFullscreenQuadsSingleRenderpass->DigestUpdate();
     const bool colorUpdated      = pFullscreenQuadsColor->DigestUpdate();
-    const bool anyUpdate         = countUpdated || typeUpdated || renderpassUpdated || colorUpdated;
+    const bool texCountUpdated   = pFullscreenQuadsRgbTextureCount->DigestUpdate() || pFullscreenQuadsYuvTextureCount->DigestUpdate();
+    const bool anyUpdate         = countUpdated || typeUpdated || renderpassUpdated || colorUpdated || texCountUpdated;
+
+    // If we've changed the number of textures, we'll have to rebind textures for the next render.
+    if (texCountUpdated) {
+        UpdateFullscreenQuadsDescriptors();
+    }
 
     // Set Visibilities
     if (pFullscreenQuadsCount->GetValue() > 0) {
@@ -1148,11 +1188,21 @@ bool GraphicsBenchmarkApp::ProcessQuadsKnobs()
         else {
             pFullscreenQuadsColor->SetVisible(false);
         }
+
+        if (pFullscreenQuadsType->GetValue() == FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_TEXTURE) {
+            pFullscreenQuadsRgbTextureCount->SetVisible(true);
+            pFullscreenQuadsYuvTextureCount->SetVisible(true);
+        } else {
+            pFullscreenQuadsRgbTextureCount->SetVisible(false);
+            pFullscreenQuadsYuvTextureCount->SetVisible(false);
+        }
     }
     else {
         pFullscreenQuadsType->SetVisible(false);
         pFullscreenQuadsSingleRenderpass->SetVisible(false);
         pFullscreenQuadsColor->SetVisible(false);
+        pFullscreenQuadsRgbTextureCount->SetVisible(false);
+        pFullscreenQuadsYuvTextureCount->SetVisible(false);
     }
     return anyUpdate;
 }
@@ -1942,8 +1992,14 @@ void GraphicsBenchmarkApp::RecordCommandBufferFullscreenQuad(PerFrame& frame, si
             frame.cmd->PushGraphicsConstants(mQuadsPipelineInterfaces[1], 3, &colorValues);
             break;
         }
-        case FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_TEXTURE:
+        case FullscreenQuadsType::FULLSCREEN_QUADS_TYPE_TEXTURE: {
+            TextureCounts textureCounts;
+            textureCounts.rgb = mBoundRgbTextureCount;
+            textureCounts.yuv = mBoundYuvTextureCount;
+            int count = sizeof(TextureCounts) / DWORD_SIZE;
+            frame.cmd->PushGraphicsConstants(mQuadsPipelineInterfaces[2], count, &textureCounts);
             break;
+        }
         default:
             PPX_ASSERT_MSG(true, "unsupported FullscreenQuadsType: " << static_cast<int>(pFullscreenQuadsType->GetValue()));
             break;

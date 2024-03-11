@@ -483,34 +483,36 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     std::vector<VkBaseOutStructure*> extensionStructs;
 
     // VK_EXT_descriptor_indexing
-    VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES};
+    mDescriptorIndexingFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES};
     if ((GetInstance()->GetApi() >= grfx::API_VK_1_2) || ElementExists(std::string(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME), mExtensions)) {
         //
         // 2023/10/01 - Just runtimeDescriptorArrays for now - need to survey what Android
         //              usage is like before enabling other freatures.
+        // 2024/03/12 - Adding partially bound descriptors to enable us to write benchmarks
+        //              with variable texture counts.
         //
-        descriptorIndexingFeatures.shaderInputAttachmentArrayDynamicIndexing          = VK_FALSE;
-        descriptorIndexingFeatures.shaderUniformTexelBufferArrayDynamicIndexing       = VK_FALSE;
-        descriptorIndexingFeatures.shaderStorageTexelBufferArrayDynamicIndexing       = VK_FALSE;
-        descriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing         = VK_FALSE;
-        descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing          = VK_FALSE;
-        descriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing         = VK_FALSE;
-        descriptorIndexingFeatures.shaderStorageImageArrayNonUniformIndexing          = VK_FALSE;
-        descriptorIndexingFeatures.shaderInputAttachmentArrayNonUniformIndexing       = VK_FALSE;
-        descriptorIndexingFeatures.shaderUniformTexelBufferArrayNonUniformIndexing    = VK_FALSE;
-        descriptorIndexingFeatures.shaderStorageTexelBufferArrayNonUniformIndexing    = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind      = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind       = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind       = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind      = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingUpdateUnusedWhilePending          = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingPartiallyBound                    = VK_FALSE;
-        descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount           = VK_FALSE;
-        descriptorIndexingFeatures.runtimeDescriptorArray                             = VK_TRUE;
+        mDescriptorIndexingFeatures.shaderInputAttachmentArrayDynamicIndexing          = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderUniformTexelBufferArrayDynamicIndexing       = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderStorageTexelBufferArrayDynamicIndexing       = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing         = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing          = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing         = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderStorageImageArrayNonUniformIndexing          = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderInputAttachmentArrayNonUniformIndexing       = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderUniformTexelBufferArrayNonUniformIndexing    = VK_FALSE;
+        mDescriptorIndexingFeatures.shaderStorageTexelBufferArrayNonUniformIndexing    = VK_FALSE;
+        mDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind      = VK_FALSE;
+        mDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind       = VK_FALSE;
+        mDescriptorIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind       = VK_FALSE;
+        mDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind      = VK_FALSE;
+        mDescriptorIndexingFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
+        mDescriptorIndexingFeatures.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE;
+        mDescriptorIndexingFeatures.descriptorBindingUpdateUnusedWhilePending          = VK_FALSE;
+        mDescriptorIndexingFeatures.descriptorBindingPartiallyBound                    = VK_TRUE;
+        mDescriptorIndexingFeatures.descriptorBindingVariableDescriptorCount           = VK_FALSE;
+        mDescriptorIndexingFeatures.runtimeDescriptorArray                             = VK_TRUE;
 
-        extensionStructs.push_back(reinterpret_cast<VkBaseOutStructure*>(&descriptorIndexingFeatures));
+        extensionStructs.push_back(reinterpret_cast<VkBaseOutStructure*>(&mDescriptorIndexingFeatures));
     }
 
     // VK_KHR_timeline_semaphore
@@ -724,8 +726,8 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     conversionInfo.components.g                       = VK_COMPONENT_SWIZZLE_IDENTITY;
     conversionInfo.components.b                       = VK_COMPONENT_SWIZZLE_IDENTITY;
     conversionInfo.components.a                       = VK_COMPONENT_SWIZZLE_IDENTITY;
-    conversionInfo.xChromaOffset                      = VK_CHROMA_LOCATION_MIDPOINT;
-    conversionInfo.yChromaOffset                      = VK_CHROMA_LOCATION_MIDPOINT;
+    conversionInfo.xChromaOffset                      = VK_CHROMA_LOCATION_COSITED_EVEN;
+    conversionInfo.yChromaOffset                      = VK_CHROMA_LOCATION_COSITED_EVEN;
     conversionInfo.chromaFilter                       = VK_FILTER_LINEAR;
     conversionInfo.forceExplicitReconstruction        = VK_FALSE;
     vkres                                             = vkCreateSamplerYcbcrConversion(mDevice, &conversionInfo, NULL, &mYcbcrSamplerConversion);
@@ -1021,6 +1023,12 @@ bool Device::IndependentBlendingSupported() const
 bool Device::FragmentStoresAndAtomicsSupported() const
 {
     return mDeviceFeatures.fragmentStoresAndAtomics == VK_TRUE;
+}
+
+bool Device::PartialDescriptorBindingsSupported() const
+{
+    return mDescriptorIndexingFeatures.descriptorBindingPartiallyBound &&
+           mDescriptorIndexingFeatures.runtimeDescriptorArray;
 }
 
 void Device::ResetQueryPoolEXT(

@@ -171,7 +171,7 @@ Result Image::CreateApiObjects(const grfx::ImageCreateInfo* pCreateInfo)
                 VkMemoryAllocateInfo allocate_info = {};
                 allocate_info.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
                 allocate_info.allocationSize       = image_size;
-                allocate_info.memoryTypeIndex      = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT; // get_device_memory_type(image_bits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+                allocate_info.memoryTypeIndex      = 0; // get_device_memory_type(image_bits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
                 VkResult vkres = vkAllocateMemory(ToApi(GetDevice())->GetVkDevice(), &allocate_info, NULL, &mMemory);
                 if (vkres != VK_SUCCESS) {
@@ -349,6 +349,7 @@ Result Sampler::CreateApiObjects(const grfx::SamplerCreateInfo* pCreateInfo)
         &vkci,
         nullptr,
         &mSampler);
+    PPX_LOG_INFO("Created sampler: " << mSampler.Get());
     if (vkres != VK_SUCCESS) {
         PPX_ASSERT_MSG(false, "vkCreateSampler failed: " << ToString(vkres));
         return ppx::ERROR_API_FAILURE;
