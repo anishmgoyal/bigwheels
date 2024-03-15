@@ -150,6 +150,9 @@ constexpr FormatDesc formatDescs[] = {
     UNCOMPRESSED_FORMAT(R10G10B10A2_UNORM,  UNORM,    COLOR,          4,  -1, PACKED,    RED_GREEN_BLUE_ALPHA,   UNDEFINED),
     UNCOMPRESSED_FORMAT(R11G11B10_FLOAT,    FLOAT,    COLOR,          4,  -1, PACKED,    RED_GREEN_BLUE,         UNDEFINED),
 
+    // Same for planar formats - we don't support retrieving component size / byte offsets.
+    UNCOMPRESSED_FORMAT(G8_B8R8_2PLANE_420_UNORM, UNORM, COLOR,       2,  -1, PACKED,   RED_GREEN_BLUE,          RGB(0, 1, 2)),
+
     // We don't support retrieving component size or byte offsets for compressed formats.
     // We don't support non-square blocks for compressed textures.
     //                +-----------------------------------------------------+
@@ -172,8 +175,6 @@ constexpr FormatDesc formatDescs[] = {
     COMPRESSED_FORMAT(BC6H_SFLOAT   , FLOAT, 16, 4,  RED_GREEN_BLUE),
     COMPRESSED_FORMAT(BC7_UNORM     , UNORM, 16, 4,  RED_GREEN_BLUE_ALPHA),
     COMPRESSED_FORMAT(BC7_SRGB      , SRGB,  16, 4,  RED_GREEN_BLUE_ALPHA),
-
-    UNCOMPRESSED_FORMAT(FORMAT_G8_B8R8_2PLANE_420_UNORM,    UNORM,    COLOR,          2,  -1, PACKED,   RED_GREEN_BLUE,         RGB(0, 1, 2)),
 
 #undef COMPRESSED_FORMAT
 #undef UNCOMPRESSED_FORMAT

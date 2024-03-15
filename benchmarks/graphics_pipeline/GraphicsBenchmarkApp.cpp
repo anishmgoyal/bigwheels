@@ -48,8 +48,8 @@ static constexpr size_t QUADS_SAMPLED_RGB_IMAGE_REGISTER_START = 2;
 static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 12;
 
 // PT texture is 3000 x 2 x 3000
-const uint32_t kYuvWidth  = 3000; // 3152;
-const uint32_t kYuvHeight = 3000; // 3840;
+const uint32_t kYuvWidth  = 3152; // 3000;
+const uint32_t kYuvHeight = 3840; // 3000;
 
 const uint32_t kQuadCount = 350;
 
@@ -132,12 +132,12 @@ void GraphicsBenchmarkApp::InitKnobs()
     pFullscreenQuadsCount->SetDisplayName("Number of Fullscreen Quads");
     pFullscreenQuadsCount->SetFlagDescription("Select the number of fullscreen quads to render.");
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsRgbTextureCount, "fullscreen-quads-rgb-tex-count", /*defaultValue=*/kMaxRgbImages/2, /*minValue=*/0, kMaxRgbImages);
-    pFullscreenQuadsRgbTextureCount->SetDisplayName("Number of RGB Textures for Fullscreen Quads");
+    GetKnobManager().InitKnob(&pFullscreenQuadsRgbTextureCount, "fullscreen-quads-rgb-tex-count", /*defaultValue=*/1, /*minValue=*/0, kMaxRgbImages);
+    pFullscreenQuadsRgbTextureCount->SetDisplayName("RGB Texture Count");
     pFullscreenQuadsRgbTextureCount->SetFlagDescription("Replicates the RGB texture (if the quads type is 'Texture'), simulating larger texture read volume.");
 
-    GetKnobManager().InitKnob(&pFullscreenQuadsYuvTextureCount, "fullscreen-quads-yuv-tex-count", /*defaultValue=*/kMaxYuvImages/2, /*minValue=*/0, kMaxYuvImages);
-    pFullscreenQuadsYuvTextureCount->SetDisplayName("Number of YUV Textures for Fullscreen Quads");
+    GetKnobManager().InitKnob(&pFullscreenQuadsYuvTextureCount, "fullscreen-quads-yuv-tex-count", /*defaultValue=*/1, /*minValue=*/0, kMaxYuvImages);
+    pFullscreenQuadsYuvTextureCount->SetDisplayName("YUV Texture Count");
     pFullscreenQuadsYuvTextureCount->SetFlagDescription("Replicates a YUV texture (if the quads type is 'Texture'), simulating larger texture read volume.");
 
     GetKnobManager().InitKnob(&pFullscreenQuadsType, "fullscreen-quads-type", 2, kFullscreenQuadsTypes);
@@ -246,6 +246,7 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.maxLod                  = FLT_MAX;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mLinearSampler));
     }
+
     {
         grfx::SamplerCreateInfo samplerCreateInfo = {};
         samplerCreateInfo.magFilter               = grfx::FILTER_NEAREST;
@@ -254,6 +255,22 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.minLod                  = 0;
         samplerCreateInfo.maxLod                  = FLT_MAX;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mPointSampler));
+    }
+
+    {
+        grfx::YcbcrConversionCreateInfo conversionCreateInfo = {};
+        conversionCreateInfo.format                      = grfx::FORMAT_G8_B8R8_2PLANE_420_UNORM;
+        conversionCreateInfo.ycbcrModel                  = grfx::YCBCR_MODEL_CONVERSION_YCBCR_709;
+        conversionCreateInfo.ycbcrRange                  = grfx::YCBCR_RANGE_ITU_FULL;
+        conversionCreateInfo.components.r                = grfx::COMPONENT_SWIZZLE_IDENTITY;
+        conversionCreateInfo.components.g                = grfx::COMPONENT_SWIZZLE_IDENTITY;
+        conversionCreateInfo.components.b                = grfx::COMPONENT_SWIZZLE_IDENTITY;
+        conversionCreateInfo.components.a                = grfx::COMPONENT_SWIZZLE_IDENTITY;
+        conversionCreateInfo.xChromaOffset               = grfx::CHROMA_LOCATION_COSITED_EVEN;
+        conversionCreateInfo.yChromaOffset               = grfx::CHROMA_LOCATION_COSITED_EVEN;
+        conversionCreateInfo.filter                      = grfx::FILTER_LINEAR;
+        conversionCreateInfo.forceExplicitReconstruction = false;
+        PPX_CHECKED_CALL(GetDevice()->CreateYcbcrConversion(&conversionCreateInfo, &mYuvConversion));
     }
 
     for (uint32_t k = 0; k < kMaxYuvImages; ++k) {
@@ -271,7 +288,7 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.maxLod                  = 1.0f;
         samplerCreateInfo.borderColor             = grfx::BORDER_COLOR_FLOAT_OPAQUE_BLACK;
         samplerCreateInfo.maxLod                  = 1.0f;
-        samplerCreateInfo.isYuv                   = true;
+        samplerCreateInfo.ycbcrConversion         = mYuvConversion;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mYuvSampler[k]));
     }
 
@@ -552,7 +569,8 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
             PPX_CHECKED_CALL(CreateTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(pQuadTextureFile->GetValue()), &mQuadsTexture[k], options));
         }
 
-        // yuv texture
+        // YUV textures
+        options.YcbcrConversion(mYuvConversion);
         for (uint32_t k = 0; k < kMaxYuvImages; ++k) {
             PPX_CHECKED_CALL(CreateYUVTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(kYUVTextureFile), kYuvWidth, kYuvHeight, &mYUVTexture[k], options));
         }

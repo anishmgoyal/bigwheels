@@ -205,6 +205,11 @@ Result Device::ConfigureExtensions(const grfx::DeviceCreateInfo* pCreateInfo)
         mExtensions.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
     }
 
+    // YCbCr color conversion
+    if (ElementExists(std::string(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME), mFoundExtensions)) {
+        mExtensions.push_back(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+    }
+
     // Dynamic rendering - if present. It also requires
     // VK_KHR_depth_stencil_resolve and VK_KHR_create_renderpass2.
 #if defined(VK_KHR_dynamic_rendering)
@@ -716,40 +721,11 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
         return ppxres;
     }
 
-    VkSamplerYcbcrConversionCreateInfo conversionInfo = {};
-    conversionInfo.sType                              = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO;
-    conversionInfo.pNext                              = NULL;
-    conversionInfo.format                             = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
-    conversionInfo.ycbcrModel                         = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
-    conversionInfo.ycbcrRange                         = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
-    conversionInfo.components.r                       = VK_COMPONENT_SWIZZLE_IDENTITY;
-    conversionInfo.components.g                       = VK_COMPONENT_SWIZZLE_IDENTITY;
-    conversionInfo.components.b                       = VK_COMPONENT_SWIZZLE_IDENTITY;
-    conversionInfo.components.a                       = VK_COMPONENT_SWIZZLE_IDENTITY;
-    conversionInfo.xChromaOffset                      = VK_CHROMA_LOCATION_COSITED_EVEN;
-    conversionInfo.yChromaOffset                      = VK_CHROMA_LOCATION_COSITED_EVEN;
-    conversionInfo.chromaFilter                       = VK_FILTER_LINEAR;
-    conversionInfo.forceExplicitReconstruction        = VK_FALSE;
-    vkres                                             = vkCreateSamplerYcbcrConversion(mDevice, &conversionInfo, NULL, &mYcbcrSamplerConversion);
-
-    if (vkres != VK_SUCCESS) {
-        PPX_ASSERT_MSG(false, "vkCreateSamplerYcbcrConversion() failed: " << ToString(vkres));
-        return ppx::ERROR_API_FAILURE;
-    }
-
-    mYcbcrInfo.sType      = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO;
-    mYcbcrInfo.pNext      = NULL;
-    mYcbcrInfo.conversion = mYcbcrSamplerConversion;
-
     return ppx::SUCCESS;
 }
 
 void Device::DestroyApiObjects()
 {
-    if (mYcbcrSamplerConversion) {
-        vkDestroySamplerYcbcrConversion(mDevice, mYcbcrSamplerConversion, nullptr);
-    }
-
     if (mVmaAllocator) {
         vmaDestroyAllocator(mVmaAllocator);
         mVmaAllocator.Reset();
@@ -989,6 +965,16 @@ Result Device::AllocateObject(grfx::StorageImageView** ppObject)
 Result Device::AllocateObject(grfx::Swapchain** ppObject)
 {
     vk::Swapchain* pObject = new vk::Swapchain();
+    if (IsNull(pObject)) {
+        return ppx::ERROR_ALLOCATION_FAILED;
+    }
+    *ppObject = pObject;
+    return ppx::SUCCESS;
+}
+
+Result Device::AllocateObject(grfx::YcbcrConversion** ppObject)
+{
+    vk::YcbcrConversion* pObject = new vk::YcbcrConversion();
     if (IsNull(pObject)) {
         return ppx::ERROR_ALLOCATION_FAILED;
     }

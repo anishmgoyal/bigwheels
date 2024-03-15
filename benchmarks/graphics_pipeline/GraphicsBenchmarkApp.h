@@ -43,7 +43,7 @@ static constexpr uint32_t kDebugColorPushConstantCount = sizeof(float4) / sizeof
 
 static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
-static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv.raw";
+static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv_average.raw";
 
 enum class DebugView
 {
@@ -457,6 +457,7 @@ private:
     grfx::SamplerPtr                  mLinearSampler;
     grfx::SamplerPtr                  mPointSampler;
     grfx::SamplerPtr                  mYuvSampler[kMaxYuvImages];
+    grfx::YcbcrConversionPtr          mYuvConversion;
     grfx::DescriptorPoolPtr           mDescriptorPool;
     std::vector<OffscreenFrame>       mOffscreenFrame;
     RealtimeValue<double>             mCPUSubmissionTime;

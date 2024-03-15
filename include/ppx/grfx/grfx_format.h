@@ -150,6 +150,7 @@ enum Format
     FORMAT_BC7_UNORM,
     FORMAT_BC7_SRGB,
 
+    // Planar formats
     FORMAT_G8_B8R8_2PLANE_420_UNORM,
 
     FORMAT_COUNT,

@@ -157,8 +157,8 @@ struct SamplerCreateInfo
     float                    minLod           = 0.0f;
     float                    maxLod           = 1.0f;
     grfx::BorderColor        borderColor      = grfx::BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    YcbcrConversion          *ycbcrConversion = nullptr;  // Leave null if not required.
     grfx::Ownership          ownership        = grfx::OWNERSHIP_REFERENCE;
-    bool                     isYuv            = false;
 };
 
 //! @class Sampler
@@ -267,16 +267,17 @@ public:
 //!
 struct SampledImageViewCreateInfo
 {
-    grfx::Image*           pImage          = nullptr;
-    grfx::ImageViewType    imageViewType   = grfx::IMAGE_VIEW_TYPE_UNDEFINED;
-    grfx::Format           format          = grfx::FORMAT_UNDEFINED;
-    grfx::SampleCount      sampleCount     = grfx::SAMPLE_COUNT_1;
-    uint32_t               mipLevel        = 0;
-    uint32_t               mipLevelCount   = 0;
-    uint32_t               arrayLayer      = 0;
-    uint32_t               arrayLayerCount = 0;
-    grfx::ComponentMapping components      = {};
-    grfx::Ownership        ownership       = grfx::OWNERSHIP_REFERENCE;
+    grfx::Image*           pImage           = nullptr;
+    grfx::ImageViewType    imageViewType    = grfx::IMAGE_VIEW_TYPE_UNDEFINED;
+    grfx::Format           format           = grfx::FORMAT_UNDEFINED;
+    grfx::SampleCount      sampleCount      = grfx::SAMPLE_COUNT_1;
+    uint32_t               mipLevel         = 0;
+    uint32_t               mipLevelCount    = 0;
+    uint32_t               arrayLayer       = 0;
+    uint32_t               arrayLayerCount  = 0;
+    grfx::ComponentMapping components       = {};
+    YcbcrConversion        *ycbcrConversion = nullptr;  // Leave null if not required.
+    grfx::Ownership        ownership        = grfx::OWNERSHIP_REFERENCE;
 
     static grfx::SampledImageViewCreateInfo GuessFromImage(grfx::Image* pImage);
 };
@@ -343,6 +344,32 @@ public:
     uint32_t            GetMipLevelCount() const { return mCreateInfo.mipLevelCount; }
     uint32_t            GetArrayLayer() const { return mCreateInfo.arrayLayer; }
     uint32_t            GetArrayLayerCount() const { return mCreateInfo.arrayLayerCount; }
+};
+
+// -------------------------------------------------------------------------------------------------
+
+//! @struct YcbcrConversionCreateInfo
+//!
+//! Defines a color model conversion for a sampler.
+//!
+struct YcbcrConversionCreateInfo
+{
+    grfx::Format               format                      = grfx::FORMAT_UNDEFINED;
+    grfx::YcbcrModelConversion ycbcrModel                  = grfx::YCBCR_MODEL_CONVERSION_RGB_IDENTITY;
+    grfx::YcbcrRange           ycbcrRange                  = grfx::YCBCR_RANGE_ITU_FULL;
+    grfx::ComponentMapping     components                  = {};
+    grfx::ChromaLocation       xChromaOffset               = grfx::CHROMA_LOCATION_COSITED_EVEN;
+    grfx::ChromaLocation       yChromaOffset               = grfx::CHROMA_LOCATION_COSITED_EVEN;
+    grfx::Filter               filter                      = grfx::FILTER_LINEAR;
+    bool                       forceExplicitReconstruction = false;
+};
+
+class YcbcrConversion
+    : public grfx::DeviceObject<grfx::YcbcrConversionCreateInfo>
+{
+public:
+    YcbcrConversion() {}
+    virtual ~YcbcrConversion() {}
 };
 
 } // namespace grfx

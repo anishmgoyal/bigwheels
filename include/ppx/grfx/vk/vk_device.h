@@ -61,7 +61,6 @@ public:
     std::array<uint32_t, 3> GetAllQueueFamilyIndices() const;
 
     uint32_t                     GetMaxPushDescriptors() const { return mMaxPushDescriptors; }
-    VkSamplerYcbcrConversionInfo GetVkSamplerYcbcrConversionInfo() const { return mYcbcrInfo; }
 
 protected:
     virtual Result AllocateObject(grfx::Buffer** ppObject) override;
@@ -88,6 +87,7 @@ protected:
     virtual Result AllocateObject(grfx::ShadingRatePattern** ppObject) override;
     virtual Result AllocateObject(grfx::StorageImageView** ppObject) override;
     virtual Result AllocateObject(grfx::Swapchain** ppObject) override;
+    virtual Result AllocateObject(grfx::YcbcrConversion** ppObject) override;
 
 protected:
     virtual Result CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo) override;
@@ -131,9 +131,6 @@ private:
     PFN_vkGetPhysicalDeviceFeatures2               mFnGetPhysicalDeviceFeatures2               = nullptr;
     PFN_vkGetPhysicalDeviceProperties2             mFnGetPhysicalDeviceProperties2             = nullptr;
     PFN_vkGetPhysicalDeviceFragmentShadingRatesKHR mFnGetPhysicalDeviceFragmentShadingRatesKHR = nullptr;
-
-    VkSamplerYcbcrConversion     mYcbcrSamplerConversion = VK_NULL_HANDLE;
-    VkSamplerYcbcrConversionInfo mYcbcrInfo;
 };
 
 extern PFN_vkCmdPushDescriptorSetKHR CmdPushDescriptorSetKHR;
