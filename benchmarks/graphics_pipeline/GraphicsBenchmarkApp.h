@@ -27,6 +27,7 @@
 #include "ppx/random.h"
 
 #include <array>
+#include <fstream>
 #include <vector>
 #include <unordered_map>
 
@@ -39,10 +40,10 @@ static constexpr float4   kDefaultDrawCallColor        = float4(1.0f, 0.175f, 0.
 static constexpr uint32_t kDebugColorPushConstantCount = sizeof(float4) / sizeof(uint32_t);
 
 static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
-static constexpr const char* kQuadTextureFile = "benchmarks/textures/solid_tex.jpg";
-static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv.raw";
+static constexpr const char* kQuadTextureFile = "benchmarks/textures/average.jpg";
+static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv_pt.raw";
 
-static constexpr uint32_t kImageCount    = 9;
+static constexpr uint32_t kImageCount    = 1;
 static constexpr uint32_t kYuvImageCount = 1;
 
 enum class DebugView
@@ -233,7 +234,17 @@ class GraphicsBenchmarkApp
 {
 public:
     GraphicsBenchmarkApp()
-        : mCamera(float3(0, 0, -5), pi<float>() / 2.0f, pi<float>() / 2.0f) {}
+        : mCamera(float3(0, 0, -5), pi<float>() / 2.0f, pi<float>() / 2.0f)
+    {
+        CreateLogCsvFile();
+    }
+
+    ~GraphicsBenchmarkApp()
+    {
+        mLogCsvFile.flush();
+        mLogCsvFile.close();
+    }
+
     virtual void InitKnobs() override;
     virtual void Config(ppx::ApplicationSettings& settings) override;
     virtual void Setup() override;
@@ -505,7 +516,7 @@ private:
     };
     MetricsData mMetricsData;
     // This is used to skip first several frames after the knob of quad count being changed
-    uint32_t mSkipRecordBandwidthMetricFrameCounter = 0;
+    uint32_t mSkipRecordBandwidthMetricFrameCounter = 2;
 
 private:
     std::shared_ptr<KnobCheckbox>              pEnableSkyBox;
@@ -532,6 +543,8 @@ private:
     std::shared_ptr<KnobCheckbox>                      pBlitOffscreen;
     std::shared_ptr<KnobDropdown<grfx::Format>>        pFramebufferFormat;
     std::shared_ptr<KnobDropdown<std::pair<int, int>>> pResolution;
+
+    std::ofstream mLogCsvFile;
 
 private:
     // =====================================================================
@@ -571,6 +584,10 @@ private:
     Result CompilePipeline(const SkyBoxPipelineKey& key);
     Result CompilePipeline(const SpherePipelineKey& key);
     Result CompilePipeline(const QuadPipelineKey& key);
+
+    void CreateLogCsvFile();
+    void LogGpuMetricsToCsv(float workDuration, float readBandwidth,
+        float writeBandwidth, float totalBandwidth);
 
     // Update descriptors
     // Note: Descriptors can be updated within rendering loop

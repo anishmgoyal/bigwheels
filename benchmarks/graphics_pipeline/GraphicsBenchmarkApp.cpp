@@ -15,9 +15,14 @@
 #include "GraphicsBenchmarkApp.h"
 #include "SphereMesh.h"
 
+#include "ppx/cachedir.h"
 #include "ppx/graphics_util.h"
 #include "ppx/grfx/grfx_format.h"
 #include "ppx/timer.h"
+
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 using namespace ppx;
 
@@ -44,7 +49,7 @@ static constexpr size_t QUADS_SAMPLED_YUV_IMAGE_REGISTER_START = 12;
 const uint32_t kYuvWidth  = 3000; // 3152;
 const uint32_t kYuvHeight = 3000; // 3840;
 
-const uint32_t kQuadCount = 350;
+const uint32_t kQuadCount = 1;
 
 #if defined(USE_DX12)
 const grfx::Api kApi = grfx::API_DX_12_0;
@@ -145,7 +150,7 @@ void GraphicsBenchmarkApp::InitKnobs()
 
     // Offscreen rendering knobs:
     {
-        GetKnobManager().InitKnob(&pRenderOffscreen, "enable-offscreen-rendering", false);
+        GetKnobManager().InitKnob(&pRenderOffscreen, "enable-offscreen-rendering", true);
         pRenderOffscreen->SetDisplayName("Offscreen rendering");
         pRenderOffscreen->SetFlagDescription("Enable rendering to an offscreen/non-swapchain framebuffer.");
 
@@ -383,15 +388,16 @@ void GraphicsBenchmarkApp::UpdateMetrics()
     const uint32_t     quadCount            = pFullscreenQuadsCount->GetValue();
 
     if (quadCount) {
+        float readBandwidth, totalBandwidth, writeBandwidth;
         if (mSkipRecordBandwidthMetricFrameCounter == 0) {
             // Write Bandwidth: only valid when there is only write
             const auto  writePixelSize = static_cast<float>(grfx::GetFormatDescription(colorFormat)->bytesPerTexel);
             const float dataWriteInGb  = (static_cast<float>(width) * static_cast<float>(height) * writePixelSize * quadCount) / (1024.f * 1024.f * 1024.f);
             {
-                const float              writeBandwidth = dataWriteInGb / gpuWorkDurationInSec;
-                ppx::metrics::MetricData data           = {ppx::metrics::MetricType::GAUGE};
-                data.gauge.seconds                      = GetElapsedSeconds();
-                data.gauge.value                        = writeBandwidth;
+                writeBandwidth                = dataWriteInGb / gpuWorkDurationInSec;
+                ppx::metrics::MetricData data = {ppx::metrics::MetricType::GAUGE};
+                data.gauge.seconds            = GetElapsedSeconds();
+                data.gauge.value              = writeBandwidth;
                 RecordMetricData(mMetricsData.metrics[MetricsData::kTypeWriteBandwidth], data);
             }
 
@@ -402,21 +408,27 @@ void GraphicsBenchmarkApp::UpdateMetrics()
             const float yuvTextureDataReadInGb = (static_cast<float>(kYuvImageCount) * static_cast<float>(mYUVTexture[0]->GetWidth()) * static_cast<float>(mYUVTexture[0]->GetHeight()) * 1.5f * quadCount) / (1024.f * 1024.f * 1024.f);
             const float dataReadInGb           = textureDataReadInGb + yuvTextureDataReadInGb;
             {
-                const float              readBandwidth = dataReadInGb / gpuWorkDurationInSec;
-                ppx::metrics::MetricData data          = {ppx::metrics::MetricType::GAUGE};
-                data.gauge.seconds                     = GetElapsedSeconds();
-                data.gauge.value                       = readBandwidth;
+                readBandwidth                 = dataReadInGb / gpuWorkDurationInSec;
+                ppx::metrics::MetricData data = {ppx::metrics::MetricType::GAUGE};
+                data.gauge.seconds            = GetElapsedSeconds();
+                data.gauge.value              = readBandwidth;
                 RecordMetricData(mMetricsData.metrics[MetricsData::kTypeReadBandwidth], data);
             }
 
             // Total Bandwidth
             {
-                const float              totalBandwidth = (dataReadInGb + dataWriteInGb) / gpuWorkDurationInSec;
-                ppx::metrics::MetricData data           = {ppx::metrics::MetricType::GAUGE};
-                data.gauge.seconds                      = GetElapsedSeconds();
-                data.gauge.value                        = totalBandwidth;
+                totalBandwidth                = (dataReadInGb + dataWriteInGb) / gpuWorkDurationInSec;
+                ppx::metrics::MetricData data = {ppx::metrics::MetricType::GAUGE};
+                data.gauge.seconds            = GetElapsedSeconds();
+                data.gauge.value              = totalBandwidth;
                 RecordMetricData(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth], data);
             }
+
+            LogGpuMetricsToCsv(
+                gpuWorkDurationInSec * 1000,
+                readBandwidth,
+                writeBandwidth,
+                totalBandwidth);
         }
         else {
             --mSkipRecordBandwidthMetricFrameCounter;
@@ -861,7 +873,7 @@ Result GraphicsBenchmarkApp::CompilePipeline(const QuadPipelineKey& key)
     gpCreateInfo.frontFace                          = grfx::FRONT_FACE_CW;
     gpCreateInfo.depthReadEnable                    = false;
     gpCreateInfo.depthWriteEnable                   = false;
-    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_OUTPUT_DISABLED;  // grfx::BLEND_MODE_NONE;
+    gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE; // grfx::BLEND_MODE_OUTPUT_DISABLED;
     gpCreateInfo.outputState.renderTargetCount      = 1;
     gpCreateInfo.outputState.renderTargetFormats[0] = key.renderFormat;
     gpCreateInfo.outputState.depthStencilFormat     = grfx::FORMAT_UNDEFINED;
@@ -1334,6 +1346,13 @@ void GraphicsBenchmarkApp::UpdateGUI()
     ImGui::Separator();
     GetKnobManager().DrawAllKnobs(true);
     ImGui::End();
+
+    // Flush log data every 100 frames, to ensure some output is available
+    // upon early termination, without affecting runtime of the benchmark too
+    // much.
+    if (GetFrameCount() % 100 == 0) {
+        mLogCsvFile.flush();
+    }
 }
 
 void GraphicsBenchmarkApp::DrawExtraInfo()
@@ -1452,14 +1471,6 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
                 ImGui::NextColumn();
                 ImGui::Text("%.2f GB/s", writeBandwidth.max);
                 ImGui::NextColumn();
-
-                // Also, log this info.
-                PPX_LOG_INFO(
-                    "Average GPU Write Bandwidth: " <<
-                    std::fixed << std::setprecision(2) <<
-                    writeBandwidth.average <<
-                    " GB/s, Min: " << writeBandwidth.min << " GB/s, Max: " <<
-                    writeBandwidth.max << "GB/s");
             }
             // else
             {
@@ -1479,14 +1490,6 @@ void GraphicsBenchmarkApp::DrawExtraInfo()
                 ImGui::NextColumn();
                 ImGui::Text("%.2f GB/s", readBandwidth.max);
                 ImGui::NextColumn();
-
-                // Also, log this info.
-                PPX_LOG_INFO(
-                    "Average GPU Read Bandwidth: " <<
-                    std::fixed << std::setprecision(2) <<
-                    readBandwidth.average <<
-                    " GB/s, Min: " << readBandwidth.min << " GB/s, Max: " <<
-                    readBandwidth.max << "GB/s");
             }
 
             const auto totalBandwidth = GetGaugeBasicStatistics(mMetricsData.metrics[MetricsData::kTypeTotalBandwidth]);
@@ -1972,4 +1975,56 @@ const ppx::Camera& GraphicsBenchmarkApp::GetCamera() const
     }
 #endif
     return mCamera;
+}
+
+void GraphicsBenchmarkApp::CreateLogCsvFile()
+{
+    std::filesystem::path fileRoot =
+        std::filesystem::current_path().root_directory() / "tmp";
+    if (GetCacheDir().has_value()) {
+        fileRoot = std::filesystem::path (GetCacheDir().value());
+    }
+
+    std::time_t time = std::chrono::system_clock::to_time_t(
+        std::chrono::system_clock::now());
+
+    std::stringstream fileName;
+    fileName << "gpu_bandwidth_stats_" << time << ".csv";
+
+    std::filesystem::path filePath =
+        std::filesystem::absolute(fileRoot / fileName.str());
+
+    PPX_LOG_INFO(
+        "Creating GPU Log CSV file at: " << filePath.string());
+
+    mLogCsvFile.open(filePath.string());
+    if (!mLogCsvFile.good()) {
+        PPX_LOG_INFO("GPU Log CSV file creation failed.");
+    } else {
+        PPX_LOG_INFO("GPU Log CSV file created.");
+    }
+
+    // Write header line
+    mLogCsvFile
+        << "epoch_time,work_dur_ms,read_bw_gbps,write_bw_gbps,total_bw_gbps"
+        << std::endl;
+}
+
+void GraphicsBenchmarkApp::LogGpuMetricsToCsv(
+    float workDuration, float readBandwidth, float writeBandwidth,
+    float totalBandwidth)
+{
+    std::time_t time = std::chrono::system_clock::to_time_t(
+        std::chrono::system_clock::now());
+
+    std::stringstream logLine;
+    logLine
+        << time << ","
+        << std::fixed << std::setprecision(2)
+        << workDuration << ","
+        << readBandwidth << ","
+        << writeBandwidth << ","
+        << totalBandwidth << std::endl;
+
+    mLogCsvFile << logLine.str();
 }

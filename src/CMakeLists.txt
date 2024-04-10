@@ -149,6 +149,7 @@ list(
     ${INC_DIR}/ppx/base_application.h
     ${INC_DIR}/ppx/bitmap.h
     ${INC_DIR}/ppx/bounding_volume.h
+    ${INC_DIR}/ppx/cachedir.h
     ${INC_DIR}/ppx/camera.h
     ${INC_DIR}/ppx/ccomptr.h
     ${INC_DIR}/ppx/command_line_parser.h
@@ -188,6 +189,7 @@ list(
     ${SRC_DIR}/ppx/base_application.cpp
     ${SRC_DIR}/ppx/bitmap.cpp
     ${SRC_DIR}/ppx/bounding_volume.cpp
+    ${SRC_DIR}/ppx/cachedir.cpp
     ${SRC_DIR}/ppx/camera.cpp
     ${SRC_DIR}/ppx/command_line_parser.cpp
     ${SRC_DIR}/ppx/csv_file_log.cpp

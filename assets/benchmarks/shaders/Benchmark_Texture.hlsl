@@ -95,7 +95,7 @@ float4 psmain(VSOutputPos input) : SV_TARGET
     float4 c8 = Tex8.SampleLevel(pointsampler, input.texcoord, 0);
     float4 c9 = Tex9.SampleLevel(pointsampler, input.texcoord, 0);
 
-    float4 sum_c = (c0 + c1  + c2  + c3 + c4 + c5 + c6+ c7 + c8 + c9)/6.f ;
+    float4 sum_c = (c0/* + c1  + c2  + c3 + c4 + c5 + c6+ c7 + c8 + c9*/);///1.f ;
 
     float4 cYUV0 = YUVTex0.SampleLevel(yuvsampler0, input.texcoord, 0);
     float4 cYUV1 = YUVTex1.SampleLevel(yuvsampler1, input.texcoord, 0);
@@ -108,7 +108,7 @@ float4 psmain(VSOutputPos input) : SV_TARGET
     float4 cYUV8 = YUVTex8.SampleLevel(yuvsampler8, input.texcoord, 0);
     float4 cYUV9 = YUVTex9.SampleLevel(yuvsampler9, input.texcoord, 0);
 
-    float4 sum_c_yuv = (cYUV0/* + cYUV1  + cYUV2  + cYUV3  + cYUV4 + cYUV5 + cYUV6  + cYUV7  + cYUV8  + cYUV9*/)/1.f ;
+    float4 sum_c_yuv = (cYUV0/* + cYUV1  + cYUV2  + cYUV3  + cYUV4 + cYUV5 + cYUV6  + cYUV7  + cYUV8  + cYUV9*/);///1.f ;
 
     const uint rd_w = 2664;
     const uint pixel_id = uint(input.position.y * rd_w + input.position.x);
@@ -117,9 +117,9 @@ float4 psmain(VSOutputPos input) : SV_TARGET
     const float blue = rand_float(pixel_id - 1);
     float4 noise = float4(red, green, blue, 1.0f);
 
-    sum_c = sum_c;// * 0.5f + sum_c_yuv *0.5f;// * 0.1f + noise*0.8f;
+    sum_c = sum_c * 0.5f + sum_c_yuv * 0.5f;// * 0.5f + sum_c_yuv *0.5f;// * 0.1f + noise*0.8f;
 
-    if (!any(sum_c))
-        dataBuffer[0] = sum_c.r;
+    // if (!any(sum_c))
+        // dataBuffer[0] = sum_c.r;
     return sum_c;
 }

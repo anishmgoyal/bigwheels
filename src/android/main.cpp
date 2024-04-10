@@ -1,3 +1,4 @@
+#include "ppx/cachedir.h"
 #include "ppx/profiler.h"
 
 #include <android_native_app_glue.h>
@@ -35,6 +36,30 @@ static std::vector<std::string> get_java_args(android_app* pApp)
 
     jVm->DetachCurrentThread();
     return args;
+}
+
+/*!
+ * Call the Java method constructCmdLineArgs on the MainActivity class to get
+ * the command line arguments from the intent extras.
+ */
+static std::string get_cache_dir(android_app* pApp)
+{
+    JavaVM* jVm  = pApp->activity->vm;
+    JNIEnv* jEnv = pApp->activity->env;
+    jVm->AttachCurrentThread(&jEnv, nullptr);
+
+    jobject   jMainActivity      = pApp->activity->clazz;
+    jclass    jMainActivityClass = jEnv->GetObjectClass(jMainActivity);
+    jmethodID jGetCacheDir       = jEnv->GetMethodID(jMainActivityClass, "getCacheDirAbsolutePath", "()Ljava/lang/String;");
+    jstring   jCacheDir          = static_cast<jstring>(jEnv->CallObjectMethod(jMainActivity, jGetCacheDir));
+
+    const char* data = jEnv->GetStringUTFChars(jCacheDir, nullptr);
+    size_t      size = jEnv->GetStringUTFLength(jCacheDir);
+    std::string result (data, size);
+    jEnv->ReleaseStringUTFChars(jCacheDir, data);
+
+    jVm->DetachCurrentThread();
+    return result;
 }
 
 // The Android activity can go by many more states, like PAUSED.
@@ -134,11 +159,15 @@ extern "C"
             args.push_back(const_cast<char*>(arg.c_str()));
         }
 
+        std::string cacheDir = get_cache_dir(pApp);
+
         while (gApplicationState != DESTROYED) {
             if (gApplicationState == RUNNING) {
                 // The profiler assumed the application is run once per process lifetime. This is wrong on
                 // Android, we need to cleanup some state.
                 ppx::Profiler::ReinitializeGlobalVariables();
+                // Set application cache directory.
+                ppx::SetCacheDir(cacheDir);
                 RunApp(pApp, cmdArgs.size(), args.data());
                 gApplicationState = READY;
             }

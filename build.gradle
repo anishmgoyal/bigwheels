@@ -125,6 +125,8 @@ subprojects {
 
                     if (project.hasProperty('DXC_PATH')) {
                       arguments "-DDXC_PATH=$DXC_PATH"
+                    } else {
+                      arguments "-DDXC_PATH=/usr/local/google/home/anishgoyal/bin/dxc"
                     }
                     targets "vk_${project.name}"
                 }

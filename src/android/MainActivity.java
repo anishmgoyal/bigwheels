@@ -24,4 +24,8 @@ public class MainActivity extends NativeActivity {
     System.arraycopy(intentArgs, 0, args, 1, intentArgs.length);
     return args;
   }
+
+  public String getCacheDirAbsolutePath() {
+    return getCacheDir().getAbsolutePath();
+  }
 }
