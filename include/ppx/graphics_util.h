@@ -158,6 +158,16 @@ private:
         grfx::Texture**              ppTexture,
         const TextureOptions&        options);
 
+    friend Result CreateTextureFromRawVideoFrame();
+
+    friend Result LoadFramesFromRawVideo(
+        grfx::Queue*                 pQueue,
+        const std::filesystem::path& path,
+        uint32_t                     width,
+        uint32_t                     height,
+        grfx::Texture**              ppTexture,
+        const TextureOptions&        options);
+
     friend Result CreateYUVTextureFromBuffer(
         grfx::Queue*          pQueue,
         const char*           pBufferData,
