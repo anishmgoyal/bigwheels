@@ -131,12 +131,14 @@ public:
     TextureOptions& AdditionalUsage(grfx::ImageUsageFlags flags) { mAdditionalUsage = flags; return *this; }
     TextureOptions& InitialState(grfx::ResourceState state) { mInitialState = state; return *this; }
     TextureOptions& MipLevelCount(uint32_t levelCount) { mMipLevelCount = levelCount; return *this; }
+    TextureOptions& YcbcrConversion(grfx::YcbcrConversion *ycbcrConversion) { mYcbcrConversion = ycbcrConversion; return *this; }
     // clang-format on
 
 private:
-    grfx::ImageUsageFlags mAdditionalUsage = grfx::ImageUsageFlags();
-    grfx::ResourceState   mInitialState    = grfx::ResourceState::RESOURCE_STATE_SHADER_RESOURCE;
-    uint32_t              mMipLevelCount   = 1;
+    grfx::ImageUsageFlags mAdditionalUsage  = grfx::ImageUsageFlags();
+    grfx::ResourceState   mInitialState     = grfx::ResourceState::RESOURCE_STATE_SHADER_RESOURCE;
+    uint32_t              mMipLevelCount    = 1;
+    grfx::YcbcrConversion *mYcbcrConversion = nullptr;
 
     friend Result CreateTextureFromBitmap(
         grfx::Queue*          pQueue,
@@ -153,6 +155,16 @@ private:
     friend Result CreateTextureFromFile(
         grfx::Queue*                 pQueue,
         const std::filesystem::path& path,
+        grfx::Texture**              ppTexture,
+        const TextureOptions&        options);
+
+    friend Result CreateTextureFromRawVideoFrame();
+
+    friend Result LoadFramesFromRawVideo(
+        grfx::Queue*                 pQueue,
+        const std::filesystem::path& path,
+        uint32_t                     width,
+        uint32_t                     height,
         grfx::Texture**              ppTexture,
         const TextureOptions&        options);
 

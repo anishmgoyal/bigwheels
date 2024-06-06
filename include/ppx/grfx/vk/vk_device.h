@@ -44,6 +44,7 @@ public:
     virtual bool DynamicRenderingSupported() const override;
     virtual bool IndependentBlendingSupported() const override;
     virtual bool FragmentStoresAndAtomicsSupported() const override;
+    virtual bool PartialDescriptorBindingsSupported() const override;
 
     void ResetQueryPoolEXT(
         VkQueryPool queryPool,
@@ -60,7 +61,6 @@ public:
     std::array<uint32_t, 3> GetAllQueueFamilyIndices() const;
 
     uint32_t                     GetMaxPushDescriptors() const { return mMaxPushDescriptors; }
-    VkSamplerYcbcrConversionInfo GetVkSamplerYcbcrConversionInfo() const { return mYcbcrInfo; }
 
 protected:
     virtual Result AllocateObject(grfx::Buffer** ppObject) override;
@@ -87,6 +87,7 @@ protected:
     virtual Result AllocateObject(grfx::ShadingRatePattern** ppObject) override;
     virtual Result AllocateObject(grfx::StorageImageView** ppObject) override;
     virtual Result AllocateObject(grfx::Swapchain** ppObject) override;
+    virtual Result AllocateObject(grfx::YcbcrConversion** ppObject) override;
 
 protected:
     virtual Result CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo) override;
@@ -96,6 +97,7 @@ private:
     Result ConfigureQueueInfo(const grfx::DeviceCreateInfo* pCreateInfo, std::vector<float>& queuePriorities, std::vector<VkDeviceQueueCreateInfo>& queueCreateInfos);
     Result ConfigureExtensions(const grfx::DeviceCreateInfo* pCreateInfo);
     Result ConfigureFeatures(const grfx::DeviceCreateInfo* pCreateInfo, VkPhysicalDeviceFeatures& features);
+    Result ConfigureDescriptorIndexingFeatures(const grfx::DeviceCreateInfo* pCreateInfo, VkPhysicalDeviceDescriptorIndexingFeatures& features);
     void   ConfigureShadingRateCapabilities(
           const grfx::DeviceCreateInfo*  pCreateInfo,
           grfx::ShadingRateCapabilities* pShadingRateCapabilities);
@@ -112,6 +114,7 @@ private:
     std::vector<std::string>                       mExtensions;
     VkDevicePtr                                    mDevice;
     VkPhysicalDeviceFeatures                       mDeviceFeatures = {};
+    VkPhysicalDeviceDescriptorIndexingFeatures     mDescriptorIndexingFeatures = {};
     VmaAllocatorPtr                                mVmaAllocator;
     bool                                           mHasTimelineSemaphore                       = false;
     bool                                           mHasExtendedDynamicState                    = false;
@@ -128,9 +131,6 @@ private:
     PFN_vkGetPhysicalDeviceFeatures2               mFnGetPhysicalDeviceFeatures2               = nullptr;
     PFN_vkGetPhysicalDeviceProperties2             mFnGetPhysicalDeviceProperties2             = nullptr;
     PFN_vkGetPhysicalDeviceFragmentShadingRatesKHR mFnGetPhysicalDeviceFragmentShadingRatesKHR = nullptr;
-
-    VkSamplerYcbcrConversion     mYcbcrSamplerConversion = VK_NULL_HANDLE;
-    VkSamplerYcbcrConversionInfo mYcbcrInfo;
 };
 
 extern PFN_vkCmdPushDescriptorSetKHR CmdPushDescriptorSetKHR;

@@ -30,6 +30,9 @@
 #include <vector>
 #include <unordered_map>
 
+static constexpr uint32_t kMaxRgbImages = 10;
+static constexpr uint32_t kMaxYuvImages = 10;
+
 static constexpr uint32_t kMaxSphereInstanceCount     = 3000;
 static constexpr uint32_t kDefaultSphereInstanceCount = 50;
 static constexpr uint32_t kSeed                       = 89977;
@@ -40,10 +43,7 @@ static constexpr uint32_t kDebugColorPushConstantCount = sizeof(float4) / sizeof
 
 static constexpr const char* kShaderBaseDir   = "benchmarks/shaders";
 static constexpr const char* kQuadTextureFile = "benchmarks/textures/resolution.jpg";
-static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv.raw";
-
-static constexpr uint32_t kImageCount    = 4;
-static constexpr uint32_t kYuvImageCount = 1;
+static constexpr const char* kYUVTextureFile  = "benchmarks/textures/yuv_average.raw";
 
 enum class DebugView
 {
@@ -436,6 +436,13 @@ private:
         grfx::FullscreenQuadPtr      quad;
     };
 
+    // Encapsulates a variable count of benchmarked textures, so that a
+    // shader knows how many RGB and YUV textures were bound.
+    struct TextureCounts {
+        uint32_t rgb;
+        uint32_t yuv;
+    };
+
 private:
     using SpherePipelineMap = std::unordered_map<SpherePipelineKey, grfx::GraphicsPipelinePtr, SpherePipelineKey::Hash>;
     using SkyboxPipelineMap = std::unordered_map<SkyBoxPipelineKey, grfx::GraphicsPipelinePtr, SkyBoxPipelineKey::Hash>;
@@ -449,7 +456,8 @@ private:
     RealtimeValue<uint64_t, float>    mGpuWorkDuration;
     grfx::SamplerPtr                  mLinearSampler;
     grfx::SamplerPtr                  mPointSampler;
-    grfx::SamplerPtr                  mYuvSampler[kYuvImageCount];
+    grfx::SamplerPtr                  mYuvSampler[kMaxYuvImages];
+    grfx::YcbcrConversionPtr          mYuvConversion;
     grfx::DescriptorPoolPtr           mDescriptorPool;
     std::vector<OffscreenFrame>       mOffscreenFrame;
     RealtimeValue<double>             mCPUSubmissionTime;
@@ -481,8 +489,8 @@ private:
     // Fullscreen quads resources
     Entity2D                                                             mFullscreenQuads;
     grfx::ShaderModulePtr                                                mVSQuads;
-    grfx::TexturePtr                                                     mQuadsTexture[kImageCount];
-    grfx::TexturePtr                                                     mYUVTexture[kYuvImageCount];
+    grfx::TexturePtr                                                     mQuadsTexture[kMaxRgbImages];
+    grfx::TexturePtr                                                     mYUVTexture[kMaxYuvImages];
     grfx::BufferPtr                                                      mQuadsDummyBuffer;
     QuadPipelineMap                                                      mQuadsPipelines;
     std::array<grfx::PipelineInterfacePtr, kFullscreenQuadsTypes.size()> mQuadsPipelineInterfaces;
@@ -523,6 +531,8 @@ private:
     std::shared_ptr<KnobCheckbox>              pAllTexturesTo1x1;
 
     std::shared_ptr<KnobSlider<int>>                   pFullscreenQuadsCount;
+    std::shared_ptr<KnobSlider<int>>                   pFullscreenQuadsRgbTextureCount;
+    std::shared_ptr<KnobSlider<int>>                   pFullscreenQuadsYuvTextureCount;
     std::shared_ptr<KnobDropdown<FullscreenQuadsType>> pFullscreenQuadsType;
     std::shared_ptr<KnobDropdown<float3>>              pFullscreenQuadsColor;
     std::shared_ptr<KnobCheckbox>                      pFullscreenQuadsSingleRenderpass;
@@ -532,6 +542,11 @@ private:
     std::shared_ptr<KnobCheckbox>                      pBlitOffscreen;
     std::shared_ptr<KnobDropdown<grfx::Format>>        pFramebufferFormat;
     std::shared_ptr<KnobDropdown<std::pair<int, int>>> pResolution;
+
+    // This helps us keep track of the actually bound images, not just what
+    // our target image binding count is.
+    int mBoundRgbTextureCount;
+    int mBoundYuvTextureCount;
 
 private:
     // =====================================================================

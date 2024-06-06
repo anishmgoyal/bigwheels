@@ -262,6 +262,18 @@ VkBufferUsageFlags ToVkBufferUsageFlags(const grfx::BufferUsageFlags& value)
     return flags;
 }
 
+VkChromaLocation ToVkChromaLocation(grfx::ChromaLocation value)
+{
+    // clang-format off;
+    switch (value) {
+        default: break;
+        case grfx::CHROMA_LOCATION_COSITED_EVEN : return VK_CHROMA_LOCATION_COSITED_EVEN;
+        case grfx::CHROMA_LOCATION_MIDPOINT     : return VK_CHROMA_LOCATION_MIDPOINT;
+    }
+    // clang-format on;
+    return ppx::InvalidValue<VkChromaLocation>();
+}
+
 VkClearColorValue ToVkClearColorValue(const grfx::RenderTargetClearValue& value)
 {
     VkClearColorValue res = {};
@@ -348,6 +360,18 @@ VkCullModeFlagBits ToVkCullMode(grfx::CullMode value)
     }
     // clang-format on
     return ppx::InvalidValue<VkCullModeFlagBits>();
+}
+
+VkDescriptorBindingFlags ToVkDescriptorBindingFlags(const grfx::DescriptorBindingFlags& value)
+{
+    VkDescriptorBindingFlags flags = 0;
+    if (value.bits.updatable) {
+        flags |= VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    }
+    if (value.bits.partiallyBound) {
+        flags |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+    }
+    return flags;
 }
 
 VkDescriptorType ToVkDescriptorType(grfx::DescriptorType value)
@@ -517,7 +541,7 @@ VkFormat ToVkFormat(grfx::Format value)
         case FORMAT_BC7_UNORM           : return VK_FORMAT_BC7_UNORM_BLOCK; break;
         case FORMAT_BC7_SRGB            : return VK_FORMAT_BC7_SRGB_BLOCK; break;
 
-        // YUV format
+        // YCbCr formats
         case FORMAT_G8_B8R8_2PLANE_420_UNORM            : return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM; break;
          
     }
@@ -1040,6 +1064,33 @@ VmaMemoryUsage ToVmaMemoryUsage(grfx::MemoryUsage value)
     }
     // clang-forat on
     return VMA_MEMORY_USAGE_UNKNOWN;
+}
+
+VkSamplerYcbcrModelConversion ToVkYcbcrModelConversion(grfx::YcbcrModelConversion value)
+{
+    // clang-format off
+    switch (value) {
+        default: break;
+        case grfx::YCBCR_MODEL_CONVERSION_RGB_IDENTITY   : return VK_SAMPLER_YCBCR_MODEL_CONVERSION_RGB_IDENTITY;
+        case grfx::YCBCR_MODEL_CONVERSION_YCBCR_IDENTITY : return VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_IDENTITY;
+        case grfx::YCBCR_MODEL_CONVERSION_YCBCR_709      : return VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
+        case grfx::YCBCR_MODEL_CONVERSION_YCBCR_601      : return VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601;
+        case grfx::YCBCR_MODEL_CONVERSION_YCBCR_2020     : return VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_2020;
+    }
+    // clang-format on
+    return ppx::InvalidValue<VkSamplerYcbcrModelConversion>();
+}
+
+VkSamplerYcbcrRange ToVkYcbcrRange(grfx::YcbcrRange value)
+{
+    // clang-format off
+    switch (value) {
+        default: break;
+        case grfx::YCBCR_RANGE_ITU_FULL   : return VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
+        case grfx::YCBCR_RANGE_ITU_NARROW : return VK_SAMPLER_YCBCR_RANGE_ITU_NARROW;
+    }
+    // clang-format on
+    return ppx::InvalidValue<VkSamplerYcbcrRange>();
 }
 
 } // namespace vk

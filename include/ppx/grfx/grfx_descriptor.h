@@ -36,18 +36,21 @@ struct DescriptorBinding
     uint32_t                      arrayCount      = 1;                               // WARNING: Not VkDescriptorSetLayoutBinding::descriptorCount
     grfx::ShaderStageBits         shaderVisiblity = grfx::SHADER_STAGE_ALL;          // Single value not set of flags (see note above)
     std::vector<grfx::SamplerPtr> immutableSamplers;
+    DescriptorBindingFlags        flags;
 
     DescriptorBinding() {}
 
     DescriptorBinding(
-        uint32_t              binding_,
-        grfx::DescriptorType  type_,
-        uint32_t              arrayCount_      = 1,
-        grfx::ShaderStageBits shaderVisiblity_ = grfx::SHADER_STAGE_ALL)
+        uint32_t               binding_,
+        grfx::DescriptorType   type_,
+        uint32_t               arrayCount_      = 1,
+        grfx::ShaderStageBits  shaderVisiblity_ = grfx::SHADER_STAGE_ALL,
+        DescriptorBindingFlags flags_           = 0)
         : binding(binding_),
           type(type_),
           arrayCount(arrayCount_),
-          shaderVisiblity(shaderVisiblity_) {}
+          shaderVisiblity(shaderVisiblity_),
+          flags(flags_) {}
 };
 
 struct WriteDescriptor

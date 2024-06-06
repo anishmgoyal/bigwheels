@@ -65,6 +65,7 @@ public:
     virtual bool DynamicRenderingSupported() const override;
     virtual bool IndependentBlendingSupported() const override;
     virtual bool FragmentStoresAndAtomicsSupported() const override;
+    virtual bool PartialDescriptorBindingsSupported() const override;
 
 protected:
     virtual Result AllocateObject(grfx::Buffer** ppObject) override;
@@ -91,6 +92,7 @@ protected:
     virtual Result AllocateObject(grfx::ShadingRatePattern** ppObject) override;
     virtual Result AllocateObject(grfx::StorageImageView** ppObject) override;
     virtual Result AllocateObject(grfx::Swapchain** ppObject) override;
+    virtual Result AllocateObject(grfx::YcbcrConversion** ppObject) override;
 
 protected:
     virtual Result CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo) override;

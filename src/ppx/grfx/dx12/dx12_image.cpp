@@ -186,6 +186,11 @@ Result Sampler::CreateApiObjects(const grfx::SamplerCreateInfo* pCreateInfo)
         mDesc.BorderColor[3] = 1;
     }
 
+    if (pCreateInfo->ycbcrConversion != nullptr) {
+        PPX_LOG_ERROR("Attempted to define a YCbCr color conversion sampler, which is not supported in the D3D12 renderer.");
+        return ppx::ERROR_REQUIRED_FEATURE_UNAVAILABLE;
+    }
+
     return ppx::SUCCESS;
 }
 
