@@ -84,6 +84,7 @@ Result Texture::CreateApiObjects(const grfx::TextureCreateInfo* pCreateInfo)
         ci.pApiObject                = nullptr;
         ci.ownership                 = pCreateInfo->ownership;
         ci.concurrentMultiQueueUsage = pCreateInfo->concurrentMultiQueueUsage;
+        ci.createFlags               = pCreateInfo->imageCreateFlags;
 
         Result ppxres = GetDevice()->CreateImage(&ci, &mImage);
         if (Failed(ppxres)) {
@@ -97,7 +98,7 @@ Result Texture::CreateApiObjects(const grfx::TextureCreateInfo* pCreateInfo)
         if (pCreateInfo->sampledImageViewType != grfx::IMAGE_VIEW_TYPE_UNDEFINED) {
             ci.imageViewType = pCreateInfo->sampledImageViewType;
         }
-        ci.ycbcrConversion = pCreateInfo->sampledImageYcbcrConversion;
+        ci.pYcbcrConversion = pCreateInfo->pSampledImageYcbcrConversion;
 
         Result ppxres = GetDevice()->CreateSampledImageView(&ci, &mSampledImageView);
         if (Failed(ppxres)) {

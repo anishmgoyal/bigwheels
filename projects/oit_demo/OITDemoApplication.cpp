@@ -33,7 +33,6 @@ void OITDemoApp::Config(ppx::ApplicationSettings& settings)
 
     settings.allowThirdPartyAssets = true;
     settings.enableImGui           = true;
-    settings.grfx.enableDebug      = false;
 
     settings.grfx.swapchain.colorFormat = grfx::FORMAT_B8G8R8A8_UNORM;
 
@@ -601,10 +600,10 @@ void OITDemoApp::RecordComposite(grfx::RenderPassPtr renderPass)
 
 void OITDemoApp::Render()
 {
+    PPX_CHECKED_CALL(mRenderCompleteFence->WaitAndReset());
     uint32_t imageIndex = UINT32_MAX;
     PPX_CHECKED_CALL(GetSwapchain()->AcquireNextImage(UINT64_MAX, mImageAcquiredSemaphore, mImageAcquiredFence, &imageIndex));
     PPX_CHECKED_CALL(mImageAcquiredFence->WaitAndReset());
-    PPX_CHECKED_CALL(mRenderCompleteFence->WaitAndReset());
 
     // Update state
     Update();

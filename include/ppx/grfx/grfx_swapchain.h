@@ -105,6 +105,7 @@ struct SwapchainCreateInfo
     grfx::Format              colorFormat         = grfx::FORMAT_UNDEFINED;
     grfx::Format              depthFormat         = grfx::FORMAT_UNDEFINED;
     uint32_t                  imageCount          = 0;
+    uint32_t                  arrayLayerCount     = 1; // Used only for XR swapchains.
     grfx::PresentMode         presentMode         = grfx::PRESENT_MODE_IMMEDIATE;
 #if defined(PPX_BUILD_XR)
     XrComponent* pXrComponent = nullptr;
@@ -132,14 +133,14 @@ public:
     Result GetDepthImage(uint32_t imageIndex, grfx::Image** ppImage) const;
     Result GetRenderPass(uint32_t imageIndex, grfx::AttachmentLoadOp loadOp, grfx::RenderPass** ppRenderPass) const;
     Result GetRenderTargetView(uint32_t imageIndex, grfx::AttachmentLoadOp loadOp, grfx::RenderTargetView** ppView) const;
-    Result GetDepthStencilView(uint32_t imageIndex, grfx::DepthStencilView** ppView) const;
+    Result GetDepthStencilView(uint32_t imageIndex, grfx::AttachmentLoadOp loadOp, grfx::DepthStencilView** ppView) const;
 
     // Convenience functions - returns empty object if index is invalid
     grfx::ImagePtr            GetColorImage(uint32_t imageIndex) const;
     grfx::ImagePtr            GetDepthImage(uint32_t imageIndex) const;
     grfx::RenderPassPtr       GetRenderPass(uint32_t imageIndex, grfx::AttachmentLoadOp loadOp = grfx::ATTACHMENT_LOAD_OP_CLEAR) const;
     grfx::RenderTargetViewPtr GetRenderTargetView(uint32_t imageIndex, grfx::AttachmentLoadOp loadOp = grfx::ATTACHMENT_LOAD_OP_CLEAR) const;
-    grfx::DepthStencilViewPtr GetDepthStencilView(uint32_t imageIndex) const;
+    grfx::DepthStencilViewPtr GetDepthStencilView(uint32_t imageIndex, grfx::AttachmentLoadOp loadOp = grfx::ATTACHMENT_LOAD_OP_CLEAR) const;
 
     Result AcquireNextImage(
         uint64_t         timeout,    // Nanoseconds
@@ -217,7 +218,8 @@ protected:
     std::vector<grfx::ImagePtr>            mColorImages;
     std::vector<grfx::RenderTargetViewPtr> mClearRenderTargets;
     std::vector<grfx::RenderTargetViewPtr> mLoadRenderTargets;
-    std::vector<grfx::DepthStencilViewPtr> mDepthStencilViews;
+    std::vector<grfx::DepthStencilViewPtr> mClearDepthStencilViews;
+    std::vector<grfx::DepthStencilViewPtr> mLoadDepthStencilViews;
     std::vector<grfx::RenderPassPtr>       mClearRenderPasses;
     std::vector<grfx::RenderPassPtr>       mLoadRenderPasses;
 

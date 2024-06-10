@@ -160,6 +160,7 @@ list(
     ${INC_DIR}/ppx/geometry.h
     ${INC_DIR}/ppx/graphics_util.h
     ${INC_DIR}/ppx/imgui_impl.h
+    ${INC_DIR}/ppx/input.h
     ${INC_DIR}/ppx/knob.h
     ${INC_DIR}/ppx/log.h
     ${INC_DIR}/ppx/metrics.h
@@ -196,6 +197,7 @@ list(
     ${SRC_DIR}/ppx/geometry.cpp
     ${SRC_DIR}/ppx/graphics_util.cpp
     ${SRC_DIR}/ppx/imgui_impl.cpp
+    ${SRC_DIR}/ppx/input.cpp
     ${SRC_DIR}/ppx/knob.cpp
     ${SRC_DIR}/ppx/log.cpp
     ${SRC_DIR}/ppx/math_config.cpp
@@ -281,6 +283,8 @@ list(
 list(
     APPEND PPX_SCENE_HEADER_FILES
     ${INC_DIR}/ppx/scene/scene_config.h
+    ${INC_DIR}/ppx/scene/scene_gltf_loader.h
+    ${INC_DIR}/ppx/scene/scene_loader.h
     ${INC_DIR}/ppx/scene/scene_material.h
     ${INC_DIR}/ppx/scene/scene_mesh.h
     ${INC_DIR}/ppx/scene/scene_node.h
@@ -290,6 +294,7 @@ list(
 
 list(
     APPEND PPX_SCENE_SOURCE_FILES
+    ${SRC_DIR}/ppx/scene/scene_gltf_loader.cpp
     ${SRC_DIR}/ppx/scene/scene_material.cpp
     ${SRC_DIR}/ppx/scene/scene_mesh.cpp
     ${SRC_DIR}/ppx/scene/scene_node.cpp

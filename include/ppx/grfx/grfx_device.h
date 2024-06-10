@@ -48,6 +48,7 @@ struct DeviceCreateInfo
     uint32_t                 transferQueueCount     = 0;
     std::vector<std::string> vulkanExtensions       = {};      // [OPTIONAL] Additional device extensions
     const void*              pVulkanDeviceFeatures  = nullptr; // [OPTIONAL] Pointer to custom VkPhysicalDeviceFeatures
+    bool                     multiView              = false;   // [OPTIONAL] Whether to allow multiView features
     ShadingRateMode          supportShadingRateMode = SHADING_RATE_NONE;
 #if defined(PPX_BUILD_XR)
     XrComponent* pXrComponent = nullptr;
@@ -135,8 +136,8 @@ public:
     Result CreateSampler(const grfx::SamplerCreateInfo* pCreateInfo, grfx::Sampler** ppSampler);
     void   DestroySampler(const grfx::Sampler* pSampler);
 
-    Result CreateYcbcrConversion(const grfx::YcbcrConversionCreateInfo* pCreateInfo, grfx::YcbcrConversion** ppConversion);
-    void   DestroyYcbcrConversion(const grfx::YcbcrConversion* pConversion);
+    Result CreateSamplerYcbcrConversion(const grfx::SamplerYcbcrConversionCreateInfo* pCreateInfo, grfx::SamplerYcbcrConversion** ppConversion);
+    void   DestroySamplerYcbcrConversion(const grfx::SamplerYcbcrConversion* pConversion);
 
     Result CreateSemaphore(const grfx::SemaphoreCreateInfo* pCreateInfo, grfx::Semaphore** ppSemaphore);
     void   DestroySemaphore(const grfx::Semaphore* pSemaphore);
@@ -188,44 +189,44 @@ public:
 
     const grfx::ShadingRateCapabilities& GetShadingRateCapabilities() const { return mShadingRateCapabilities; }
 
-    virtual Result WaitIdle() = 0;
-
-    virtual bool PipelineStatsAvailable() const             = 0;
-    virtual bool DynamicRenderingSupported() const          = 0;
-    virtual bool IndependentBlendingSupported() const       = 0;
-    virtual bool FragmentStoresAndAtomicsSupported() const  = 0;
-    virtual bool PartialDescriptorBindingsSupported() const = 0;
+    virtual Result WaitIdle()                                 = 0;
+    virtual bool   MultiViewSupported() const                 = 0;
+    virtual bool   PipelineStatsAvailable() const             = 0;
+    virtual bool   DynamicRenderingSupported() const          = 0;
+    virtual bool   IndependentBlendingSupported() const       = 0;
+    virtual bool   FragmentStoresAndAtomicsSupported() const  = 0;
+    virtual bool   PartialDescriptorBindingsSupported() const = 0;
 
 protected:
     virtual Result Create(const grfx::DeviceCreateInfo* pCreateInfo) override;
     virtual void   Destroy() override;
     friend class grfx::Instance;
 
-    virtual Result AllocateObject(grfx::Buffer** ppObject)                     = 0;
-    virtual Result AllocateObject(grfx::CommandBuffer** ppObject)              = 0;
-    virtual Result AllocateObject(grfx::CommandPool** ppObject)                = 0;
-    virtual Result AllocateObject(grfx::ComputePipeline** ppObject)            = 0;
-    virtual Result AllocateObject(grfx::DepthStencilView** ppObject)           = 0;
-    virtual Result AllocateObject(grfx::DescriptorPool** ppObject)             = 0;
-    virtual Result AllocateObject(grfx::DescriptorSet** ppObject)              = 0;
-    virtual Result AllocateObject(grfx::DescriptorSetLayout** ppObject)        = 0;
-    virtual Result AllocateObject(grfx::Fence** ppObject)                      = 0;
-    virtual Result AllocateObject(grfx::GraphicsPipeline** ppObject)           = 0;
-    virtual Result AllocateObject(grfx::Image** ppObject)                      = 0;
-    virtual Result AllocateObject(grfx::PipelineInterface** ppObject)          = 0;
-    virtual Result AllocateObject(grfx::Queue** ppObject)                      = 0;
-    virtual Result AllocateObject(grfx::Query** ppObject)                      = 0;
-    virtual Result AllocateObject(grfx::RenderPass** ppObject)                 = 0;
-    virtual Result AllocateObject(grfx::RenderTargetView** ppObject)           = 0;
-    virtual Result AllocateObject(grfx::SampledImageView** ppObject)           = 0;
-    virtual Result AllocateObject(grfx::Sampler** ppObject)                    = 0;
-    virtual Result AllocateObject(grfx::YcbcrConversion** ppConversion)        = 0;
-    virtual Result AllocateObject(grfx::Semaphore** ppObject)                  = 0;
-    virtual Result AllocateObject(grfx::ShaderModule** ppObject)               = 0;
-    virtual Result AllocateObject(grfx::ShaderProgram** ppObject)              = 0;
-    virtual Result AllocateObject(grfx::ShadingRatePattern** ppObject)         = 0;
-    virtual Result AllocateObject(grfx::StorageImageView** ppObject)           = 0;
-    virtual Result AllocateObject(grfx::Swapchain** ppObject)                  = 0;
+    virtual Result AllocateObject(grfx::Buffer** ppObject)                 = 0;
+    virtual Result AllocateObject(grfx::CommandBuffer** ppObject)          = 0;
+    virtual Result AllocateObject(grfx::CommandPool** ppObject)            = 0;
+    virtual Result AllocateObject(grfx::ComputePipeline** ppObject)        = 0;
+    virtual Result AllocateObject(grfx::DepthStencilView** ppObject)       = 0;
+    virtual Result AllocateObject(grfx::DescriptorPool** ppObject)         = 0;
+    virtual Result AllocateObject(grfx::DescriptorSet** ppObject)          = 0;
+    virtual Result AllocateObject(grfx::DescriptorSetLayout** ppObject)    = 0;
+    virtual Result AllocateObject(grfx::Fence** ppObject)                  = 0;
+    virtual Result AllocateObject(grfx::GraphicsPipeline** ppObject)       = 0;
+    virtual Result AllocateObject(grfx::Image** ppObject)                  = 0;
+    virtual Result AllocateObject(grfx::PipelineInterface** ppObject)      = 0;
+    virtual Result AllocateObject(grfx::Queue** ppObject)                  = 0;
+    virtual Result AllocateObject(grfx::Query** ppObject)                  = 0;
+    virtual Result AllocateObject(grfx::RenderPass** ppObject)             = 0;
+    virtual Result AllocateObject(grfx::RenderTargetView** ppObject)       = 0;
+    virtual Result AllocateObject(grfx::SampledImageView** ppObject)       = 0;
+    virtual Result AllocateObject(grfx::Sampler** ppObject)                = 0;
+    virtual Result AllocateObject(grfx::SamplerYcbcrConversion** ppObject) = 0;
+    virtual Result AllocateObject(grfx::Semaphore** ppObject)              = 0;
+    virtual Result AllocateObject(grfx::ShaderModule** ppObject)           = 0;
+    virtual Result AllocateObject(grfx::ShaderProgram** ppObject)          = 0;
+    virtual Result AllocateObject(grfx::ShadingRatePattern** ppObject)     = 0;
+    virtual Result AllocateObject(grfx::StorageImageView** ppObject)       = 0;
+    virtual Result AllocateObject(grfx::Swapchain** ppObject)              = 0;
 
     virtual Result AllocateObject(grfx::DrawPass** ppObject);
     virtual Result AllocateObject(grfx::FullscreenQuad** ppObject);
@@ -275,6 +276,7 @@ protected:
     std::vector<grfx::RenderTargetViewPtr>       mRenderTargetViews;
     std::vector<grfx::SampledImageViewPtr>       mSampledImageViews;
     std::vector<grfx::SamplerPtr>                mSamplers;
+    std::vector<grfx::SamplerYcbcrConversionPtr> mSamplerYcbcrConversions;
     std::vector<grfx::SemaphorePtr>              mSemaphores;
     std::vector<grfx::ShaderModulePtr>           mShaderModules;
     std::vector<grfx::ShaderProgramPtr>          mShaderPrograms;
@@ -286,7 +288,6 @@ protected:
     std::vector<grfx::QueuePtr>                  mGraphicsQueues;
     std::vector<grfx::QueuePtr>                  mComputeQueues;
     std::vector<grfx::QueuePtr>                  mTransferQueues;
-    std::vector<grfx::YcbcrConversionPtr>        mYcbcrConversions;
     grfx::ShadingRateCapabilities                mShadingRateCapabilities;
 };
 

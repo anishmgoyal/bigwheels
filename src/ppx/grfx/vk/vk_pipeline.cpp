@@ -236,7 +236,7 @@ Result GraphicsPipeline::InitializeRasterization(
     stateCreateInfo.lineWidth               = 1.0f;
 
     // Handle depth clip enable
-    if (ToApi(GetDevice())->HasUnreistrictedDepthRange()) {
+    if (ToApi(GetDevice())->HasDepthClipEnabled()) {
         depthClipStateCreateInfo.flags           = 0;
         depthClipStateCreateInfo.depthClipEnable = pCreateInfo->rasterState.depthClipEnable;
         // Set pNext
@@ -494,6 +494,8 @@ Result GraphicsPipeline::CreateApiObjects(const grfx::GraphicsPipelineCreateInfo
             DataPtr(renderTargetFormats),
             depthStencilFormat,
             ToVkSampleCount(pCreateInfo->rasterState.rasterizationSamples),
+            pCreateInfo->multiViewState.viewMask,
+            pCreateInfo->multiViewState.correlationMask,
             &renderPass,
             pCreateInfo->shadingRateMode);
         if (vkres != VK_SUCCESS) {

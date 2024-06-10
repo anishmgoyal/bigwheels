@@ -457,7 +457,7 @@ private:
     grfx::SamplerPtr                  mLinearSampler;
     grfx::SamplerPtr                  mPointSampler;
     grfx::SamplerPtr                  mYuvSampler[kMaxYuvImages];
-    grfx::YcbcrConversionPtr          mYuvConversion;
+    grfx::SamplerYcbcrConversionPtr   mYuvConversion;
     grfx::DescriptorPoolPtr           mDescriptorPool;
     std::vector<OffscreenFrame>       mOffscreenFrame;
     RealtimeValue<double>             mCPUSubmissionTime;

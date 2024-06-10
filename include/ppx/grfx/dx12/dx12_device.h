@@ -66,6 +66,7 @@ public:
     virtual bool IndependentBlendingSupported() const override;
     virtual bool FragmentStoresAndAtomicsSupported() const override;
     virtual bool PartialDescriptorBindingsSupported() const override;
+    virtual bool MultiViewSupported() const override;
 
 protected:
     virtual Result AllocateObject(grfx::Buffer** ppObject) override;
@@ -86,6 +87,7 @@ protected:
     virtual Result AllocateObject(grfx::RenderTargetView** ppObject) override;
     virtual Result AllocateObject(grfx::SampledImageView** ppObject) override;
     virtual Result AllocateObject(grfx::Sampler** ppObject) override;
+    virtual Result AllocateObject(grfx::SamplerYcbcrConversion** ppObject) override;
     virtual Result AllocateObject(grfx::Semaphore** ppObject) override;
     virtual Result AllocateObject(grfx::ShaderModule** ppObject) override;
     virtual Result AllocateObject(grfx::ShaderProgram** ppObject) override;

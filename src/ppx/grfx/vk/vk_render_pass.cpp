@@ -133,6 +133,19 @@ Result RenderPass::CreateRenderPass(const grfx::internal::RenderPassCreateInfo* 
     vkci.dependencyCount        = 1;
     vkci.pDependencies          = &subpassDependencies;
 
+    bool hasMultiView = ToApi(GetDevice())->HasMultiView();
+
+    VkRenderPassMultiviewCreateInfo multiviewInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO};
+    if (pCreateInfo->multiViewState.viewMask > 0) {
+        PPX_ASSERT_MSG(hasMultiView, "Multiview not supported on the device");
+        multiviewInfo.subpassCount         = 1;
+        multiviewInfo.pViewMasks           = &pCreateInfo->multiViewState.viewMask;
+        multiviewInfo.correlationMaskCount = 1;
+        multiviewInfo.pCorrelationMasks    = &pCreateInfo->multiViewState.correlationMask;
+
+        vkci.pNext = &multiviewInfo;
+    }
+
     if (!IsNull(pCreateInfo->pShadingRatePattern)) {
         auto     modifiedCreateInfo = ToApi(pCreateInfo->pShadingRatePattern)->GetModifiedRenderPassCreateInfo(vkci);
         VkResult vkres              = vk::CreateRenderPass(
@@ -178,6 +191,39 @@ Result RenderPass::CreateFramebuffer(const grfx::internal::RenderPassCreateInfo*
     }
 
     if (!IsNull(pCreateInfo->pShadingRatePattern)) {
+        if (pCreateInfo->pShadingRatePattern->GetShadingRateMode() == grfx::SHADING_RATE_FDM) {
+            if (rtvCount > 0) {
+                // Check that all or none of the render targets and depth-stencil attachments are subsampled.
+                bool subsampled = mRenderTargetViews[0]->GetImage()->GetCreateFlags().bits.subsampledFormat;
+                if (!subsampled) {
+                    PPX_ASSERT_MSG(GetDevice()->GetShadingRateCapabilities().fdm.supportsNonSubsampledImages, "Non-subsampled render target images with FDM shading rate are not supported.");
+                }
+
+                // This device does not support non-subsampled image attachments with FDM shading rate.
+                // Check that all the attachments are subsampled.
+                for (uint32_t i = 0; i < rtvCount; ++i) {
+                    grfx::RenderTargetViewPtr rtv = mRenderTargetViews[i];
+                    if (subsampled) {
+                        PPX_ASSERT_MSG(rtv->GetImage()->GetCreateFlags().bits.subsampledFormat, "Render target image 0 is subsampled, but render target " << i << " is not subsampled.");
+                    }
+                    else {
+                        PPX_ASSERT_MSG(!rtv->GetImage()->GetCreateFlags().bits.subsampledFormat, "Render target image 0 is not subsampled, but render target " << i << " is subsampled.");
+                    }
+                }
+                if (hasDepthSencil) {
+                    if (subsampled) {
+                        PPX_ASSERT_MSG(mDepthStencilView->GetImage()->GetCreateFlags().bits.subsampledFormat, "Render targets are subsampled, but depth-stencil image is not subsampled.");
+                    }
+                    else {
+                        PPX_ASSERT_MSG(!mDepthStencilView->GetImage()->GetCreateFlags().bits.subsampledFormat, "Render targets are subsampled, but depth-stencil image is not subsampled.");
+                    }
+                }
+            }
+            else if (hasDepthSencil && !mDepthStencilView->GetImage()->GetCreateFlags().bits.subsampledFormat) {
+                // No render targets, only depth/stencil which is not subsampled.
+                PPX_ASSERT_MSG(GetDevice()->GetShadingRateCapabilities().fdm.supportsNonSubsampledImages, "Non-subsampled depth-stencil image with FDM shading rate are not supported.");
+            }
+        }
         attachments.push_back(ToApi(pCreateInfo->pShadingRatePattern)->GetAttachmentImageView());
     }
     VkFramebufferCreateInfo vkci = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
@@ -244,6 +290,8 @@ VkResult CreateTransientRenderPass(
     const VkFormat*       pRenderTargetFormats,
     VkFormat              depthStencilFormat,
     VkSampleCountFlagBits sampleCount,
+    uint32_t              viewMask,
+    uint32_t              correlationMask,
     VkRenderPass*         pRenderPass,
     grfx::ShadingRateMode shadingRateMode)
 {
@@ -321,6 +369,16 @@ VkResult CreateTransientRenderPass(
     vkci.pSubpasses             = &subpassDescription;
     vkci.dependencyCount        = 1;
     vkci.pDependencies          = &subpassDependencies;
+    // Callers responsibiltiy to only set viewmask if it is required
+    VkRenderPassMultiviewCreateInfo multiviewInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO};
+    if (viewMask > 0) {
+        multiviewInfo.subpassCount         = 1;
+        multiviewInfo.pViewMasks           = &viewMask;
+        multiviewInfo.correlationMaskCount = 1;
+        multiviewInfo.pCorrelationMasks    = &correlationMask;
+
+        vkci.pNext = &multiviewInfo;
+    }
 
     if (shadingRateMode != SHADING_RATE_NONE) {
         auto     modifiedCreateInfo = vk::ShadingRatePattern::GetModifiedRenderPassCreateInfo(device, shadingRateMode, vkci);

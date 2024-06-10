@@ -258,7 +258,7 @@ void GraphicsBenchmarkApp::Setup()
     }
 
     {
-        grfx::YcbcrConversionCreateInfo conversionCreateInfo = {};
+        grfx::SamplerYcbcrConversionCreateInfo conversionCreateInfo {};
         conversionCreateInfo.format                      = grfx::FORMAT_G8_B8R8_2PLANE_420_UNORM;
         conversionCreateInfo.ycbcrModel                  = grfx::YCBCR_MODEL_CONVERSION_YCBCR_709;
         conversionCreateInfo.ycbcrRange                  = grfx::YCBCR_RANGE_ITU_FULL;
@@ -270,7 +270,7 @@ void GraphicsBenchmarkApp::Setup()
         conversionCreateInfo.yChromaOffset               = grfx::CHROMA_LOCATION_COSITED_EVEN;
         conversionCreateInfo.filter                      = grfx::FILTER_LINEAR;
         conversionCreateInfo.forceExplicitReconstruction = false;
-        PPX_CHECKED_CALL(GetDevice()->CreateYcbcrConversion(&conversionCreateInfo, &mYuvConversion));
+        PPX_CHECKED_CALL(GetDevice()->CreateSamplerYcbcrConversion(&conversionCreateInfo, &mYuvConversion));
     }
 
     for (uint32_t k = 0; k < kMaxYuvImages; ++k) {
@@ -288,7 +288,7 @@ void GraphicsBenchmarkApp::Setup()
         samplerCreateInfo.maxLod                  = 1.0f;
         samplerCreateInfo.borderColor             = grfx::BORDER_COLOR_FLOAT_OPAQUE_BLACK;
         samplerCreateInfo.maxLod                  = 1.0f;
-        samplerCreateInfo.ycbcrConversion         = mYuvConversion;
+        samplerCreateInfo.pYcbcrConversion        = mYuvConversion;
         PPX_CHECKED_CALL(GetDevice()->CreateSampler(&samplerCreateInfo, &mYuvSampler[k]));
     }
 
@@ -570,7 +570,7 @@ void GraphicsBenchmarkApp::SetupFullscreenQuadsResources()
         }
 
         // YUV textures
-        options.YcbcrConversion(mYuvConversion);
+        options.SamplerYcbcrConversion(mYuvConversion);
         for (uint32_t k = 0; k < kMaxYuvImages; ++k) {
             PPX_CHECKED_CALL(CreateYUVTextureFromFile(GetDevice()->GetGraphicsQueue(), GetAssetPath(kYUVTextureFile), kYuvWidth, kYuvHeight, &mYUVTexture[k], options));
         }
@@ -726,9 +726,9 @@ void GraphicsBenchmarkApp::SetupSphereMeshes()
     GetDevice()->WaitIdle();
     // Destroy the meshes if they were created.
     for (auto& mesh : mSphereMeshes) {
-        if (mesh != nullptr) {
+        if (!mesh.IsNull()) {
             GetDevice()->DestroyMesh(mesh);
-            mesh = nullptr;
+            mesh.Reset();
         }
     }
 
@@ -1281,6 +1281,9 @@ void GraphicsBenchmarkApp::Render()
     uint32_t           imageIndex = UINT32_MAX;
     grfx::SwapchainPtr swapchain  = GetSwapchain(currentViewIndex);
 
+    // Wait for and reset render complete fence
+    PPX_CHECKED_CALL(frame.renderCompleteFence->WaitAndReset());
+
 #if defined(PPX_BUILD_XR)
     if (IsXrEnabled()) {
         PPX_ASSERT_MSG(swapchain->ShouldSkipExternalSynchronization(), "XRComponent should not be nullptr when XR is enabled!");
@@ -1298,9 +1301,6 @@ void GraphicsBenchmarkApp::Render()
         // Wait for and reset image acquired fence.
         PPX_CHECKED_CALL(frame.imageAcquiredFence->WaitAndReset());
     }
-
-    // Wait for and reset render complete fence
-    PPX_CHECKED_CALL(frame.renderCompleteFence->WaitAndReset());
 
     // Read query results
     if (GetFrameCount() > 0) {

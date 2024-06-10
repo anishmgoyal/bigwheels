@@ -69,7 +69,7 @@ void Device::Destroy()
     DestroyAllObjects(mSwapchains);
 
     // Destroy Ycbcr Conversions after images and views
-    DestroyAllObjects(mYcbcrConversions);
+    DestroyAllObjects(mSamplerYcbcrConversions);
 
     grfx::InstanceObject<grfx::DeviceCreateInfo>::Destroy();
     PPX_LOG_INFO("Destroyed device: " << mCreateInfo.pGpu->GetDeviceName());
@@ -532,17 +532,17 @@ void Device::DestroySampler(const grfx::Sampler* pSampler)
     DestroyObject(mSamplers, pSampler);
 }
 
-Result Device::CreateYcbcrConversion(const grfx::YcbcrConversionCreateInfo* pCreateInfo, grfx::YcbcrConversion** ppConversion)
+Result Device::CreateSamplerYcbcrConversion(const grfx::SamplerYcbcrConversionCreateInfo* pCreateInfo, grfx::SamplerYcbcrConversion** ppConversion)
 {
     PPX_ASSERT_NULL_ARG(pCreateInfo);
     PPX_ASSERT_NULL_ARG(ppConversion);
-    return CreateObject(pCreateInfo, mYcbcrConversions, ppConversion);
+    return CreateObject(pCreateInfo, mSamplerYcbcrConversions, ppConversion);
 }
 
-void Device::DestroyYcbcrConversion(const grfx::YcbcrConversion* pConversion)
+void Device::DestroySamplerYcbcrConversion(const grfx::SamplerYcbcrConversion* pConversion)
 {
     PPX_ASSERT_NULL_ARG(pConversion);
-    DestroyObject(mYcbcrConversions, pConversion);
+    DestroyObject(mSamplerYcbcrConversions, pConversion);
 }
 
 Result Device::CreateSemaphore(const grfx::SemaphoreCreateInfo* pCreateInfo, grfx::Semaphore** ppSemaphore)

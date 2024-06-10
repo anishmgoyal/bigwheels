@@ -115,7 +115,7 @@ struct DescriptorBindingFlags
     {
         struct
         {
-            bool updatable : 1;
+            bool updatable      : 1;
             bool partiallyBound : 1;
         } bits;
         uint32_t flags;
@@ -292,6 +292,92 @@ struct ImageUsageFlags
 
 // -------------------------------------------------------------------------------------------------
 
+struct ImageCreateFlags
+{
+    union
+    {
+        struct
+        {
+            bool subsampledFormat : 1;
+        } bits;
+        uint32_t flags;
+    };
+
+    ImageCreateFlags()
+        : flags(0) {}
+
+    ImageCreateFlags(uint32_t flags_)
+        : flags(flags_) {}
+
+    ImageCreateFlags& operator=(uint32_t rhs)
+    {
+        this->flags = rhs;
+        return *this;
+    }
+
+    ImageCreateFlags& operator|=(const ImageCreateFlags& rhs)
+    {
+        this->flags |= rhs.flags;
+        return *this;
+    }
+
+    ImageCreateFlags& operator|=(uint32_t rhs)
+    {
+        this->flags |= rhs;
+        return *this;
+    }
+
+    operator uint32_t() const
+    {
+        return flags;
+    }
+};
+
+// -------------------------------------------------------------------------------------------------
+
+struct SamplerCreateFlags
+{
+    union
+    {
+        struct
+        {
+            bool subsampledFormat : 1;
+        } bits;
+        uint32_t flags;
+    };
+
+    SamplerCreateFlags()
+        : flags(0) {}
+
+    SamplerCreateFlags(uint32_t flags_)
+        : flags(flags_) {}
+
+    SamplerCreateFlags& operator=(uint32_t rhs)
+    {
+        this->flags = rhs;
+        return *this;
+    }
+
+    SamplerCreateFlags& operator|=(const SamplerCreateFlags& rhs)
+    {
+        this->flags |= rhs.flags;
+        return *this;
+    }
+
+    SamplerCreateFlags& operator|=(uint32_t rhs)
+    {
+        this->flags |= rhs;
+        return *this;
+    }
+
+    operator uint32_t() const
+    {
+        return flags;
+    }
+};
+
+// -------------------------------------------------------------------------------------------------
+
 struct Range
 {
     uint32_t start = 0;
@@ -348,6 +434,14 @@ struct VertexAttribute
     uint32_t              offset       = PPX_APPEND_OFFSET_ALIGNED;       // Use PPX_APPEND_OFFSET_ALIGNED to auto calculate offsets
     grfx::VertexInputRate inputRate    = grfx::VERTEX_INPUT_RATE_VERTEX;  //
     grfx::VertexSemantic  semantic     = grfx::VERTEX_SEMANTIC_UNDEFINED; // [OPTIONAL]
+};
+
+// -------------------------------------------------------------------------------------------------
+
+struct MultiViewState
+{
+    uint32_t viewMask        = 0;
+    uint32_t correlationMask = 0;
 };
 
 // -------------------------------------------------------------------------------------------------

@@ -264,13 +264,13 @@ VkBufferUsageFlags ToVkBufferUsageFlags(const grfx::BufferUsageFlags& value)
 
 VkChromaLocation ToVkChromaLocation(grfx::ChromaLocation value)
 {
-    // clang-format off;
+    // clang-format off
     switch (value) {
         default: break;
         case grfx::CHROMA_LOCATION_COSITED_EVEN : return VK_CHROMA_LOCATION_COSITED_EVEN;
         case grfx::CHROMA_LOCATION_MIDPOINT     : return VK_CHROMA_LOCATION_MIDPOINT;
     }
-    // clang-format on;
+    // clang-format on
     return ppx::InvalidValue<VkChromaLocation>();
 }
 

@@ -564,7 +564,7 @@ enum YcbcrModelConversion
 
 enum YcbcrRange
 {
-    YCBCR_RANGE_ITU_FULL = 0,
+    YCBCR_RANGE_ITU_FULL   = 0,
     YCBCR_RANGE_ITU_NARROW = 1,
 };
 

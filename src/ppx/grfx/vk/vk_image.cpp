@@ -47,6 +47,9 @@ Result Image::CreateApiObjects(const grfx::ImageCreateInfo* pCreateInfo)
                 createFlags |= VK_IMAGE_CREATE_DISJOINT_BIT;
             }
 
+            if (pCreateInfo->createFlags.bits.subsampledFormat) {
+                createFlags |= VK_IMAGE_CREATE_SUBSAMPLED_BIT_EXT;
+            }
             auto queueIndices = ToApi(GetDevice())->GetAllQueueFamilyIndices();
 
             VkImageCreateInfo vkci = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
@@ -321,8 +324,11 @@ void Image::UnmapMemory()
 // -------------------------------------------------------------------------------------------------
 Result Sampler::CreateApiObjects(const grfx::SamplerCreateInfo* pCreateInfo)
 {
-    VkSamplerCreateInfo vkci     = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-    vkci.flags                   = 0;
+    VkSamplerCreateInfo vkci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    vkci.flags               = 0;
+    if (pCreateInfo->createFlags.bits.subsampledFormat) {
+        vkci.flags |= VK_SAMPLER_CREATE_SUBSAMPLED_BIT_EXT;
+    }
     vkci.magFilter               = ToVkFilter(pCreateInfo->magFilter);
     vkci.minFilter               = ToVkFilter(pCreateInfo->minFilter);
     vkci.mipmapMode              = ToVkSamplerMipmapMode(pCreateInfo->mipmapMode);
@@ -339,10 +345,10 @@ Result Sampler::CreateApiObjects(const grfx::SamplerCreateInfo* pCreateInfo)
     vkci.borderColor             = ToVkBorderColor(pCreateInfo->borderColor);
     vkci.unnormalizedCoordinates = VK_FALSE;
 
-    VkSamplerYcbcrConversionInfo conversionInfo {VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO};
-    if (pCreateInfo->ycbcrConversion != nullptr) {
-        conversionInfo.conversion = ToApi(pCreateInfo->ycbcrConversion)->GetVkSamplerYcbcrConversion().Get();
-        vkci.pNext = &conversionInfo;
+    VkSamplerYcbcrConversionInfo conversionInfo{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO};
+    if (pCreateInfo->pYcbcrConversion != nullptr) {
+        conversionInfo.conversion = ToApi(pCreateInfo->pYcbcrConversion)->GetVkSamplerYcbcrConversion().Get();
+        vkci.pNext                = &conversionInfo;
     }
 
     VkResult vkres = vkCreateSampler(
@@ -480,10 +486,10 @@ Result SampledImageView::CreateApiObjects(const grfx::SampledImageViewCreateInfo
     vkci.subresourceRange.baseArrayLayer = pCreateInfo->arrayLayer;
     vkci.subresourceRange.layerCount     = pCreateInfo->arrayLayerCount;
 
-    VkSamplerYcbcrConversionInfo conversionInfo {VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO};
-    if (pCreateInfo->ycbcrConversion != nullptr) {
-        conversionInfo.conversion = ToApi(pCreateInfo->ycbcrConversion)->GetVkSamplerYcbcrConversion();
-        vkci.pNext = &conversionInfo;
+    VkSamplerYcbcrConversionInfo conversionInfo{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO};
+    if (pCreateInfo->pYcbcrConversion != nullptr) {
+        conversionInfo.conversion = ToApi(pCreateInfo->pYcbcrConversion)->GetVkSamplerYcbcrConversion().Get();
+        vkci.pNext                = &conversionInfo;
     }
 
     VkResult vkres = vk::CreateImageView(
@@ -514,6 +520,46 @@ void SampledImageView::DestroyApiObjects()
             mImageView,
             nullptr);
         mImageView.Reset();
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+// SamplerYcbcrConversion
+// -------------------------------------------------------------------------------------------------
+
+Result SamplerYcbcrConversion::CreateApiObjects(const grfx::SamplerYcbcrConversionCreateInfo* pCreateInfo)
+{
+    VkSamplerYcbcrConversionCreateInfo vkci{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO};
+    vkci.format                      = ToVkFormat(pCreateInfo->format);
+    vkci.ycbcrModel                  = ToVkYcbcrModelConversion(pCreateInfo->ycbcrModel);
+    vkci.ycbcrRange                  = ToVkYcbcrRange(pCreateInfo->ycbcrRange);
+    vkci.components                  = ToVkComponentMapping(pCreateInfo->components);
+    vkci.xChromaOffset               = ToVkChromaLocation(pCreateInfo->xChromaOffset);
+    vkci.yChromaOffset               = ToVkChromaLocation(pCreateInfo->yChromaOffset);
+    vkci.chromaFilter                = ToVkFilter(pCreateInfo->filter);
+    vkci.forceExplicitReconstruction = pCreateInfo->forceExplicitReconstruction ? VK_TRUE : VK_FALSE;
+
+    VkResult vkres = vkCreateSamplerYcbcrConversion(
+        ToApi(GetDevice())->GetVkDevice(), &vkci, nullptr, &mSamplerYcbcrConversion);
+    PPX_LOG_INFO("Created sampler ycbcr conversion: " << mSamplerYcbcrConversion.Get());
+    if (vkres != VK_SUCCESS) {
+        PPX_ASSERT_MSG(
+            false,
+            "vkCreateSamplerYcbcrConversion failed: " << ToString(vkres));
+        return ppx::ERROR_API_FAILURE;
+    }
+
+    return ppx::SUCCESS;
+}
+
+void SamplerYcbcrConversion::DestroyApiObjects()
+{
+    if (mSamplerYcbcrConversion) {
+        vkDestroySamplerYcbcrConversion(
+            ToApi(GetDevice())->GetVkDevice(),
+            mSamplerYcbcrConversion,
+            nullptr);
+        mSamplerYcbcrConversion.Reset();
     }
 }
 
@@ -562,46 +608,6 @@ void StorageImageView::DestroyApiObjects()
             mImageView,
             nullptr);
         mImageView.Reset();
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-// YcbcrConversion
-// -------------------------------------------------------------------------------------------------
-
-Result YcbcrConversion::CreateApiObjects(const grfx::YcbcrConversionCreateInfo* pCreateInfo)
-{
-    VkSamplerYcbcrConversionCreateInfo vkci {VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO};
-    vkci.format                      = ToVkFormat(pCreateInfo->format);
-    vkci.ycbcrModel                  = ToVkYcbcrModelConversion(pCreateInfo->ycbcrModel);
-    vkci.ycbcrRange                  = ToVkYcbcrRange(pCreateInfo->ycbcrRange);
-    vkci.components                  = ToVkComponentMapping(pCreateInfo->components);
-    vkci.xChromaOffset               = ToVkChromaLocation(pCreateInfo->xChromaOffset);
-    vkci.yChromaOffset               = ToVkChromaLocation(pCreateInfo->yChromaOffset);
-    vkci.chromaFilter                = ToVkFilter(pCreateInfo->filter);
-    vkci.forceExplicitReconstruction = pCreateInfo->forceExplicitReconstruction ? VK_TRUE : VK_FALSE;
-
-    VkResult vkres = vkCreateSamplerYcbcrConversion(
-        ToApi(GetDevice())->GetVkDevice(), &vkci, nullptr, &mSamplerYcbcrConversion);
-    PPX_LOG_INFO("Created sampler ycbcr conversion: " << mSamplerYcbcrConversion.Get());
-    if (vkres != VK_SUCCESS) {
-        PPX_ASSERT_MSG(
-            false,
-            "vkCreateSamplerYcbcrConversion failed: " << ToString(vkres));
-        return ppx::ERROR_API_FAILURE;
-    }
-
-    return ppx::SUCCESS;
-}
-
-void YcbcrConversion::DestroyApiObjects()
-{
-    if (mSamplerYcbcrConversion) {
-        vkDestroySamplerYcbcrConversion(
-            ToApi(GetDevice())->GetVkDevice(),
-            mSamplerYcbcrConversion,
-            nullptr);
-        mSamplerYcbcrConversion.Reset();
     }
 }
 

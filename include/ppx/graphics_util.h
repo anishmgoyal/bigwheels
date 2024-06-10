@@ -131,14 +131,14 @@ public:
     TextureOptions& AdditionalUsage(grfx::ImageUsageFlags flags) { mAdditionalUsage = flags; return *this; }
     TextureOptions& InitialState(grfx::ResourceState state) { mInitialState = state; return *this; }
     TextureOptions& MipLevelCount(uint32_t levelCount) { mMipLevelCount = levelCount; return *this; }
-    TextureOptions& YcbcrConversion(grfx::YcbcrConversion *ycbcrConversion) { mYcbcrConversion = ycbcrConversion; return *this; }
+    TextureOptions& SamplerYcbcrConversion(grfx::SamplerYcbcrConversion *pYcbcrConversion) { mYcbcrConversion = pYcbcrConversion; return *this; }
     // clang-format on
 
 private:
-    grfx::ImageUsageFlags mAdditionalUsage  = grfx::ImageUsageFlags();
-    grfx::ResourceState   mInitialState     = grfx::ResourceState::RESOURCE_STATE_SHADER_RESOURCE;
-    uint32_t              mMipLevelCount    = 1;
-    grfx::YcbcrConversion *mYcbcrConversion = nullptr;
+    grfx::ImageUsageFlags         mAdditionalUsage = grfx::ImageUsageFlags();
+    grfx::ResourceState           mInitialState    = grfx::ResourceState::RESOURCE_STATE_SHADER_RESOURCE;
+    uint32_t                      mMipLevelCount   = 1;
+    grfx::SamplerYcbcrConversion* mYcbcrConversion = nullptr;
 
     friend Result CreateTextureFromBitmap(
         grfx::Queue*          pQueue,
@@ -166,6 +166,24 @@ private:
         uint32_t              height,
         grfx::Texture**       ppTexture,
         const TextureOptions& options);
+
+    // Splits the frames from a raw video, based on the format of the frames,
+    // and metadata such as height and width. This assumes raw video, with no
+    // metadata in the file itself, and no audio tracks (such as a camera
+    // feed). Returns if the operation succeeded.
+    // path: The path to the file containing the video.
+    // format: Describes the video format; this is important for determining
+    //         the size of a frame.
+    // width: The width of each frame, in pixels, with no subsampling applied.
+    // height: The height of each frame, in pixels, with no subsampling applied.
+    // pFrames: A vector where resulting frames will be stored. This should not
+    //          be null.
+    friend Result LoadFramesFromRawVideo(
+        const std::filesystem::path&    path,
+        grfx::Format                    format,
+        uint32_t                        width,
+        uint32_t                        height,
+        std::vector<std::vector<char>>* pFrames);
 };
 
 //! @fn CreateTextureFromBitmap

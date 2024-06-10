@@ -147,7 +147,6 @@ void ProjApp::Config(ppx::ApplicationSettings& settings)
     settings.appName                       = "async_compute";
     settings.enableImGui                   = true;
     settings.grfx.api                      = kApi;
-    settings.grfx.enableDebug              = false;
     settings.window.width                  = 1920;
     settings.window.height                 = 1080;
     settings.grfx.swapchain.imageCount     = mNumFramesInFlight;
@@ -750,14 +749,14 @@ void ProjApp::Render()
 
 uint32_t ProjApp::AcquireFrame(PerFrame& frame)
 {
+    // Wait for and reset render complete fence
+    PPX_CHECKED_CALL(frame.renderCompleteFence->WaitAndReset());
+
     uint32_t imageIndex = UINT32_MAX;
     PPX_CHECKED_CALL(GetSwapchain()->AcquireNextImage(UINT64_MAX, frame.imageAcquiredSemaphore, frame.imageAcquiredFence, &imageIndex));
 
     // Wait for and reset image acquired fence
     PPX_CHECKED_CALL(frame.imageAcquiredFence->WaitAndReset());
-
-    // Wait for and reset render complete fence
-    PPX_CHECKED_CALL(frame.renderCompleteFence->WaitAndReset());
 
     return imageIndex;
 }

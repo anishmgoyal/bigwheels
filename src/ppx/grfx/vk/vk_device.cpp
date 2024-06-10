@@ -181,6 +181,9 @@ Result Device::ConfigureExtensions(const grfx::DeviceCreateInfo* pCreateInfo)
             "FDM shading rate requires unsupported extension " << VK_EXT_FRAGMENT_DENSITY_MAP_EXTENSION_NAME);
         mExtensions.push_back(VK_EXT_FRAGMENT_DENSITY_MAP_EXTENSION_NAME);
 
+        // VK_EXT_fragment_density_map2 is required on some drivers to enable subsampled images.
+        mExtensions.push_back(VK_EXT_FRAGMENT_DENSITY_MAP_2_EXTENSION_NAME);
+
         // VK_KHR_create_renderpass2 is not required for FDM, but simplifies
         // code to create the RenderPass.
         PPX_ASSERT_MSG(
@@ -196,8 +199,13 @@ Result Device::ConfigureExtensions(const grfx::DeviceCreateInfo* pCreateInfo)
 #endif // defined(PPX_VK_EXTENDED_DYNAMIC_STATE)
 
     // Depth clip
-    if (ElementExists(std::string(VK_EXT_DEPTH_RANGE_UNRESTRICTED_EXTENSION_NAME), mFoundExtensions)) {
-        mExtensions.push_back(VK_EXT_DEPTH_RANGE_UNRESTRICTED_EXTENSION_NAME);
+    if (ElementExists(std::string(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME), mFoundExtensions)) {
+        mExtensions.push_back(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME);
+    }
+
+    // MultiView
+    if (ElementExists(std::string(VK_KHR_MULTIVIEW_EXTENSION_NAME), mFoundExtensions)) {
+        mExtensions.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
     }
 
     // Push descriptors
@@ -261,6 +269,10 @@ Result Device::ConfigureFeatures(const grfx::DeviceCreateInfo* pCreateInfo, VkPh
     features.shaderStorageImageMultisample        = foundFeatures.shaderStorageImageMultisample;
     features.samplerAnisotropy                    = foundFeatures.samplerAnisotropy;
 
+    if (ElementExists(std::string(VK_KHR_MULTIVIEW_EXTENSION_NAME), mExtensions)) {
+        mHasMultiView = pCreateInfo->multiView;
+    }
+
     // Select between default or custom features.
     if (!IsNull(pCreateInfo->pVulkanDeviceFeatures)) {
         const VkPhysicalDeviceFeatures* pFeatures = static_cast<const VkPhysicalDeviceFeatures*>(pCreateInfo->pVulkanDeviceFeatures);
@@ -298,6 +310,66 @@ Result Device::ConfigureFeatures(const grfx::DeviceCreateInfo* pCreateInfo, VkPh
     features.shaderSampledImageArrayDynamicIndexing  = VK_TRUE;
     features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
     features.shaderStorageImageArrayDynamicIndexing  = VK_TRUE;
+
+    return ppx::SUCCESS;
+}
+
+Result Device::ConfigureDescriptorIndexingFeatures(
+    const grfx::DeviceCreateInfo* pCreateInfo, VkPhysicalDeviceDescriptorIndexingFeatures& diFeatures)
+{
+    vk::Gpu* pGpu = ToApi(pCreateInfo->pGpu);
+
+    VkPhysicalDeviceDescriptorIndexingFeatures foundDiFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES};
+    VkPhysicalDeviceFeatures2                  foundFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &foundDiFeatures};
+    vkGetPhysicalDeviceFeatures2(pGpu->GetVkGpu(), &foundFeatures);
+
+    //
+    // 2023/10/01 - Just runtimeDescriptorArrays for now - need to survey what Android
+    //              usage is like before enabling other freatures.
+    // 2024/03/12 - Fetch features from the GPU, and enable any features that are
+    //              supported. runtimeDescriptorArray was forced to true before, so
+    //              that setting was kept.
+    //
+    diFeatures.shaderInputAttachmentArrayDynamicIndexing          = foundDiFeatures.shaderInputAttachmentArrayDynamicIndexing;
+    diFeatures.shaderUniformTexelBufferArrayDynamicIndexing       = foundDiFeatures.shaderUniformTexelBufferArrayDynamicIndexing;
+    diFeatures.shaderStorageTexelBufferArrayDynamicIndexing       = foundDiFeatures.shaderStorageTexelBufferArrayDynamicIndexing;
+    diFeatures.shaderUniformBufferArrayNonUniformIndexing         = foundDiFeatures.shaderUniformBufferArrayNonUniformIndexing;
+    diFeatures.shaderSampledImageArrayNonUniformIndexing          = foundDiFeatures.shaderSampledImageArrayNonUniformIndexing;
+    diFeatures.shaderStorageBufferArrayNonUniformIndexing         = foundDiFeatures.shaderStorageBufferArrayNonUniformIndexing;
+    diFeatures.shaderStorageImageArrayNonUniformIndexing          = foundDiFeatures.shaderStorageImageArrayNonUniformIndexing;
+    diFeatures.shaderInputAttachmentArrayNonUniformIndexing       = foundDiFeatures.shaderInputAttachmentArrayNonUniformIndexing;
+    diFeatures.shaderUniformTexelBufferArrayNonUniformIndexing    = foundDiFeatures.shaderUniformTexelBufferArrayNonUniformIndexing;
+    diFeatures.shaderStorageTexelBufferArrayNonUniformIndexing    = foundDiFeatures.shaderStorageTexelBufferArrayNonUniformIndexing;
+    diFeatures.descriptorBindingUniformBufferUpdateAfterBind      = foundDiFeatures.descriptorBindingUniformBufferUpdateAfterBind;
+    diFeatures.descriptorBindingSampledImageUpdateAfterBind       = VK_TRUE;
+    diFeatures.descriptorBindingStorageImageUpdateAfterBind       = foundDiFeatures.descriptorBindingStorageImageUpdateAfterBind;
+    diFeatures.descriptorBindingStorageBufferUpdateAfterBind      = foundDiFeatures.descriptorBindingStorageBufferUpdateAfterBind;
+    diFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind = foundDiFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind;
+    diFeatures.descriptorBindingStorageTexelBufferUpdateAfterBind = foundDiFeatures.descriptorBindingStorageTexelBufferUpdateAfterBind;
+    diFeatures.descriptorBindingUpdateUnusedWhilePending          = foundDiFeatures.descriptorBindingUpdateUnusedWhilePending;
+    diFeatures.descriptorBindingPartiallyBound                    = foundDiFeatures.descriptorBindingPartiallyBound;
+    diFeatures.descriptorBindingVariableDescriptorCount           = foundDiFeatures.descriptorBindingVariableDescriptorCount;
+    diFeatures.runtimeDescriptorArray                             = VK_TRUE;
+
+    // Verify that any asserted features were actually found to be
+    // supported.
+    std::vector<std::string_view> missingFeatures;
+    if (!foundDiFeatures.descriptorBindingSampledImageUpdateAfterBind) {
+        missingFeatures.push_back("descriptorBindingSampledImageUpdateAfterBind");
+    }
+    if (!foundDiFeatures.runtimeDescriptorArray) {
+        missingFeatures.push_back("runtimeDescriptorArray");
+    }
+
+    if (!missingFeatures.empty()) {
+        std::stringstream ss;
+        ss << "Device does not support required features:" << PPX_LOG_ENDL;
+        for (const auto& elem : missingFeatures) {
+            ss << " " << elem << PPX_LOG_ENDL;
+        }
+        PPX_ASSERT_MSG(false, ss.str());
+        return ppx::ERROR_REQUIRED_FEATURE_UNAVAILABLE;
+    }
 
     return ppx::SUCCESS;
 }
@@ -352,6 +424,8 @@ void Device::ConfigureFDMShadingRateCapabilities(
     PPX_ASSERT_MSG(
         fdmFeatures.fragmentDensityMap == VK_TRUE,
         "FDM shading rate mode was requested, but not supported by the GPU.");
+
+    pShadingRateCapabilities->fdm.supportsNonSubsampledImages = fdmFeatures.fragmentDensityMapNonSubsampledImages;
 
     pShadingRateCapabilities->fdm.minTexelSize = {
         fdmProperties.minFragmentDensityTexelSize.width,
@@ -490,34 +564,17 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     // VK_EXT_descriptor_indexing
     mDescriptorIndexingFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES};
     if ((GetInstance()->GetApi() >= grfx::API_VK_1_2) || ElementExists(std::string(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME), mExtensions)) {
-        //
-        // 2023/10/01 - Just runtimeDescriptorArrays for now - need to survey what Android
-        //              usage is like before enabling other freatures.
-        // 2024/03/12 - Adding partially bound descriptors to enable us to write benchmarks
-        //              with variable texture counts.
-        //
-        mDescriptorIndexingFeatures.shaderInputAttachmentArrayDynamicIndexing          = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderUniformTexelBufferArrayDynamicIndexing       = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderStorageTexelBufferArrayDynamicIndexing       = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing         = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing          = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing         = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderStorageImageArrayNonUniformIndexing          = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderInputAttachmentArrayNonUniformIndexing       = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderUniformTexelBufferArrayNonUniformIndexing    = VK_FALSE;
-        mDescriptorIndexingFeatures.shaderStorageTexelBufferArrayNonUniformIndexing    = VK_FALSE;
-        mDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind      = VK_FALSE;
-        mDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind       = VK_FALSE;
-        mDescriptorIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind       = VK_FALSE;
-        mDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind      = VK_FALSE;
-        mDescriptorIndexingFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
-        mDescriptorIndexingFeatures.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE;
-        mDescriptorIndexingFeatures.descriptorBindingUpdateUnusedWhilePending          = VK_FALSE;
-        mDescriptorIndexingFeatures.descriptorBindingPartiallyBound                    = VK_TRUE;
-        mDescriptorIndexingFeatures.descriptorBindingVariableDescriptorCount           = VK_FALSE;
-        mDescriptorIndexingFeatures.runtimeDescriptorArray                             = VK_TRUE;
-
+        mHasDescriptorIndexingFeatures = true;
+        ConfigureDescriptorIndexingFeatures(pCreateInfo, mDescriptorIndexingFeatures);
         extensionStructs.push_back(reinterpret_cast<VkBaseOutStructure*>(&mDescriptorIndexingFeatures));
+    }
+
+    // VK_EXT_scalar_block_layout
+    VkPhysicalDeviceScalarBlockLayoutFeatures scalarBlockLayoutFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES};
+    if ((GetInstance()->GetApi() >= grfx::API_VK_1_2) || ElementExists(std::string(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME), mExtensions)) {
+        scalarBlockLayoutFeatures.scalarBlockLayout = VK_TRUE;
+
+        extensionStructs.push_back(reinterpret_cast<VkBaseOutStructure*>(&scalarBlockLayoutFeatures));
     }
 
     // VK_KHR_timeline_semaphore
@@ -545,9 +602,22 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
     }
 #endif
 
+    PPX_LOG_INFO("Vulkan MultiView is chosen and present: " << mHasMultiView);
+    VkPhysicalDeviceMultiviewFeatures physicalDeviceMultiviewFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES};
+    if (GetInstance()->GetApi() >= grfx::API_VK_1_1 && mHasMultiView) {
+        physicalDeviceMultiviewFeatures.pNext                       = nullptr;
+        physicalDeviceMultiviewFeatures.multiview                   = VK_TRUE;
+        physicalDeviceMultiviewFeatures.multiviewGeometryShader     = VK_FALSE;
+        physicalDeviceMultiviewFeatures.multiviewTessellationShader = VK_FALSE;
+        extensionStructs.push_back(reinterpret_cast<VkBaseOutStructure*>(&physicalDeviceMultiviewFeatures));
+    }
+
     VkPhysicalDeviceFragmentDensityMapFeaturesEXT fragmentDensityMapFeature = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_DENSITY_MAP_FEATURES_EXT};
     if (pCreateInfo->supportShadingRateMode == SHADING_RATE_FDM) {
         fragmentDensityMapFeature.fragmentDensityMap = VK_TRUE;
+        if (mShadingRateCapabilities.fdm.supportsNonSubsampledImages) {
+            fragmentDensityMapFeature.fragmentDensityMapNonSubsampledImages = VK_TRUE;
+        }
         extensionStructs.push_back(reinterpret_cast<VkBaseOutStructure*>(&fragmentDensityMapFeature));
     }
 
@@ -677,7 +747,7 @@ Result Device::CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo)
 #endif // defined(PPX_VK_EXTENDED_DYNAMIC_STATE)
 
     // Depth clip enabled
-    mHasUnrestrictedDepthRange = ElementExists(std::string(VK_EXT_DEPTH_RANGE_UNRESTRICTED_EXTENSION_NAME), mExtensions);
+    mHasDepthClipEnabled = ElementExists(std::string(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME), mExtensions);
 
     // Get maxPushDescriptors property and load function
     if (ElementExists(std::string(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME), mExtensions)) {
@@ -917,6 +987,16 @@ Result Device::AllocateObject(grfx::Sampler** ppObject)
     return ppx::SUCCESS;
 }
 
+Result Device::AllocateObject(grfx::SamplerYcbcrConversion** ppObject)
+{
+    vk::SamplerYcbcrConversion* pObject = new vk::SamplerYcbcrConversion();
+    if (IsNull(pObject)) {
+        return ppx::ERROR_ALLOCATION_FAILED;
+    }
+    *ppObject = pObject;
+    return ppx::SUCCESS;
+}
+
 Result Device::AllocateObject(grfx::Semaphore** ppObject)
 {
     vk::Semaphore* pObject = new vk::Semaphore();
@@ -972,16 +1052,6 @@ Result Device::AllocateObject(grfx::Swapchain** ppObject)
     return ppx::SUCCESS;
 }
 
-Result Device::AllocateObject(grfx::YcbcrConversion** ppObject)
-{
-    vk::YcbcrConversion* pObject = new vk::YcbcrConversion();
-    if (IsNull(pObject)) {
-        return ppx::ERROR_ALLOCATION_FAILED;
-    }
-    *ppObject = pObject;
-    return ppx::SUCCESS;
-}
-
 Result Device::WaitIdle()
 {
     VkResult vkres = vkDeviceWaitIdle(mDevice);
@@ -994,6 +1064,11 @@ Result Device::WaitIdle()
 bool Device::PipelineStatsAvailable() const
 {
     return mDeviceFeatures.pipelineStatisticsQuery;
+}
+
+bool Device::MultiViewSupported() const
+{
+    return mHasMultiView;
 }
 
 bool Device::DynamicRenderingSupported() const
@@ -1013,8 +1088,7 @@ bool Device::FragmentStoresAndAtomicsSupported() const
 
 bool Device::PartialDescriptorBindingsSupported() const
 {
-    return mDescriptorIndexingFeatures.descriptorBindingPartiallyBound &&
-           mDescriptorIndexingFeatures.runtimeDescriptorArray;
+    return mDescriptorIndexingFeatures.descriptorBindingPartiallyBound;
 }
 
 void Device::ResetQueryPoolEXT(

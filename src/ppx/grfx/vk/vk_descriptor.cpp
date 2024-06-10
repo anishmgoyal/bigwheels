@@ -57,13 +57,7 @@ Result DescriptorPool::CreateApiObjects(const grfx::DescriptorPoolCreateInfo* pC
     }
 
     // Flags
-    uint32_t flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    if (GetDevice()->GetApi() == grfx::API_VK_1_1) {
-        flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
-    }
-    else {
-        flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-    }
+    uint32_t flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
 
     VkDescriptorPoolCreateInfo vkci = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     vkci.flags                      = flags;
@@ -267,7 +261,8 @@ Result DescriptorSetLayout::CreateApiObjects(const grfx::DescriptorSetLayoutCrea
     std::vector<std::vector<VkSampler>> vkImmutableSamplers(pCreateInfo->bindings.size());
 
     std::vector<VkDescriptorSetLayoutBinding> vkBindings;
-    std::vector<VkDescriptorBindingFlags> vkBindingFlags;
+    std::vector<VkDescriptorBindingFlags>     vkBindingFlags;
+    bool                                      hasBindingFlags = false;
     for (size_t i = 0; i < pCreateInfo->bindings.size(); ++i) {
         const grfx::DescriptorBinding& baseBinding = pCreateInfo->bindings[i];
 
@@ -283,22 +278,30 @@ Result DescriptorSetLayout::CreateApiObjects(const grfx::DescriptorSetLayoutCrea
         vkBinding.pImmutableSamplers           = vkImmutableSamplers[i].empty() ? nullptr : DataPtr(vkImmutableSamplers[i]);
         vkBindings.push_back(vkBinding);
 
+        PPX_CHECKED_CALL(ValidateDescriptorBindingFlags(baseBinding.flags));
         VkDescriptorBindingFlags vkBindingFlag = ToVkDescriptorBindingFlags(baseBinding.flags);
         vkBindingFlags.push_back(vkBindingFlag);
+        if (baseBinding.flags != 0) {
+            hasBindingFlags = true;
+        }
     }
 
-    VkDescriptorSetLayoutBindingFlagsCreateInfoEXT vkBindingWrapper = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT};
-    vkBindingWrapper.bindingCount                                   = CountU32(vkBindingFlags);
-    vkBindingWrapper.pBindingFlags                                  = DataPtr(vkBindingFlags);
-    vkBindingWrapper.pNext                                          = nullptr;
-
-    VkDescriptorSetLayoutCreateInfo vkci = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    VkDescriptorSetLayoutCreateInfo vkci = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr};
     vkci.bindingCount                    = CountU32(vkBindings);
     vkci.pBindings                       = DataPtr(vkBindings);
-    vkci.pNext                           = &vkBindingWrapper;
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfoEXT vkBindingWrapper = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT, nullptr};
+    if (hasBindingFlags) {
+        vkBindingWrapper.bindingCount  = CountU32(vkBindingFlags);
+        vkBindingWrapper.pBindingFlags = DataPtr(vkBindingFlags);
+        vkci.pNext                     = &vkBindingWrapper;
+    }
 
     if (pCreateInfo->flags.bits.pushable) {
         vkci.flags |= VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+    }
+    else {
+        vkci.flags |= VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     }
 
     VkResult vkres = vkCreateDescriptorSetLayout(
@@ -320,6 +323,25 @@ void DescriptorSetLayout::DestroyApiObjects()
         vkDestroyDescriptorSetLayout(ToApi(GetDevice())->GetVkDevice(), mDescriptorSetLayout, nullptr);
         mDescriptorSetLayout.Reset();
     }
+}
+
+Result DescriptorSetLayout::ValidateDescriptorBindingFlags(const grfx::DescriptorBindingFlags& flags) const
+{
+    if (flags == 0) {
+        return ppx::SUCCESS;
+    }
+
+    if (flags.bits.partiallyBound && !GetDevice()->PartialDescriptorBindingsSupported()) {
+        PPX_ASSERT_MSG(false, "Partial descriptor bindings aren't supported, but are enabled by flags!");
+        return ppx::ERROR_REQUIRED_FEATURE_UNAVAILABLE;
+    }
+
+    if (!ToApi(GetDevice())->HasDescriptorIndexingFeatures()) {
+        PPX_ASSERT_MSG(false, "Descriptor indexing features aren't supported, binding flags must be 0!");
+        return ppx::ERROR_REQUIRED_FEATURE_UNAVAILABLE;
+    }
+
+    return ppx::SUCCESS;
 }
 
 } // namespace vk

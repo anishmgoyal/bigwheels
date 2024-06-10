@@ -34,13 +34,15 @@ public:
 
     const VkPhysicalDeviceFeatures& GetDeviceFeatures() const { return mDeviceFeatures; }
 
-    bool HasTimelineSemaphore() const { return mHasTimelineSemaphore; }
-    bool HasExtendedDynamicState() const { return mHasExtendedDynamicState; }
-    bool HasUnreistrictedDepthRange() const { return mHasUnrestrictedDepthRange; }
-
+    bool           HasDescriptorIndexingFeatures() const { return mHasDescriptorIndexingFeatures; }
+    bool           HasTimelineSemaphore() const { return mHasTimelineSemaphore; }
+    bool           HasExtendedDynamicState() const { return mHasExtendedDynamicState; }
+    bool           HasDepthClipEnabled() const { return mHasDepthClipEnabled; }
+    bool           HasMultiView() const { return mHasMultiView; }
     virtual Result WaitIdle() override;
 
     virtual bool PipelineStatsAvailable() const override;
+    virtual bool MultiViewSupported() const override;
     virtual bool DynamicRenderingSupported() const override;
     virtual bool IndependentBlendingSupported() const override;
     virtual bool FragmentStoresAndAtomicsSupported() const override;
@@ -81,13 +83,13 @@ protected:
     virtual Result AllocateObject(grfx::RenderTargetView** ppObject) override;
     virtual Result AllocateObject(grfx::SampledImageView** ppObject) override;
     virtual Result AllocateObject(grfx::Sampler** ppObject) override;
+    virtual Result AllocateObject(grfx::SamplerYcbcrConversion** ppObject) override;
     virtual Result AllocateObject(grfx::Semaphore** ppObject) override;
     virtual Result AllocateObject(grfx::ShaderModule** ppObject) override;
     virtual Result AllocateObject(grfx::ShaderProgram** ppObject) override;
     virtual Result AllocateObject(grfx::ShadingRatePattern** ppObject) override;
     virtual Result AllocateObject(grfx::StorageImageView** ppObject) override;
     virtual Result AllocateObject(grfx::Swapchain** ppObject) override;
-    virtual Result AllocateObject(grfx::YcbcrConversion** ppObject) override;
 
 protected:
     virtual Result CreateApiObjects(const grfx::DeviceCreateInfo* pCreateInfo) override;
@@ -97,7 +99,7 @@ private:
     Result ConfigureQueueInfo(const grfx::DeviceCreateInfo* pCreateInfo, std::vector<float>& queuePriorities, std::vector<VkDeviceQueueCreateInfo>& queueCreateInfos);
     Result ConfigureExtensions(const grfx::DeviceCreateInfo* pCreateInfo);
     Result ConfigureFeatures(const grfx::DeviceCreateInfo* pCreateInfo, VkPhysicalDeviceFeatures& features);
-    Result ConfigureDescriptorIndexingFeatures(const grfx::DeviceCreateInfo* pCreateInfo, VkPhysicalDeviceDescriptorIndexingFeatures& features);
+    Result ConfigureDescriptorIndexingFeatures(const grfx::DeviceCreateInfo* pCreateInfo, VkPhysicalDeviceDescriptorIndexingFeatures& diFeatures);
     void   ConfigureShadingRateCapabilities(
           const grfx::DeviceCreateInfo*  pCreateInfo,
           grfx::ShadingRateCapabilities* pShadingRateCapabilities);
@@ -113,12 +115,14 @@ private:
     std::vector<std::string>                       mFoundExtensions;
     std::vector<std::string>                       mExtensions;
     VkDevicePtr                                    mDevice;
-    VkPhysicalDeviceFeatures                       mDeviceFeatures = {};
+    VkPhysicalDeviceFeatures                       mDeviceFeatures             = {};
     VkPhysicalDeviceDescriptorIndexingFeatures     mDescriptorIndexingFeatures = {};
     VmaAllocatorPtr                                mVmaAllocator;
+    bool                                           mHasDescriptorIndexingFeatures              = false;
     bool                                           mHasTimelineSemaphore                       = false;
     bool                                           mHasExtendedDynamicState                    = false;
-    bool                                           mHasUnrestrictedDepthRange                  = false;
+    bool                                           mHasDepthClipEnabled                        = false;
+    bool                                           mHasMultiView                               = false;
     bool                                           mHasDynamicRendering                        = false;
     PFN_vkResetQueryPoolEXT                        mFnResetQueryPoolEXT                        = nullptr;
     PFN_vkWaitSemaphores                           mFnWaitSemaphores                           = nullptr;
