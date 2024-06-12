@@ -913,7 +913,7 @@ Result GraphicsBenchmarkApp::CompilePipeline(const QuadPipelineKey& key)
     gpCreateInfo.blendModes[0]                      = grfx::BLEND_MODE_NONE;  // grfx::BLEND_MODE_OUTPUT_DISABLED;
     gpCreateInfo.outputState.renderTargetCount      = 1;
     gpCreateInfo.outputState.renderTargetFormats[0] = key.renderFormat;
-    gpCreateInfo.outputState.depthStencilFormat     = grfx::FORMAT_UNDEFINED;
+    gpCreateInfo.outputState.depthStencilFormat     = GetSwapchain()->GetDepthFormat();
     gpCreateInfo.pPipelineInterface                 = mQuadsPipelineInterfaces[quadTypeIndex];
 
     grfx::GraphicsPipelinePtr pipeline = nullptr;
