@@ -276,7 +276,7 @@ struct FormatDesc
     // If true, this is a planar format that does not store all image components
     // in a single block. E.G. YCbCr formats, where Cb and Cr may be defined in
     // a separate plane than Y values, and have a different resolution.
-    bool isPlanar;
+    bool isMultiPlanar;
 };
 
 enum FormatPlaneChromaType

@@ -249,7 +249,7 @@ const std::optional<FormatPlaneDesc> GetFormatPlaneDescription(
     }
 
     const FormatDesc* description = GetFormatDescription(format);
-    if (description == nullptr || !description->isPlanar) {
+    if (description == nullptr || !description->isMultiPlanar) {
         PPX_LOG_WARN("Attempted to get planes for format " << format << ", which is non-planar");
     }
     else {

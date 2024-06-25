@@ -86,6 +86,7 @@ struct BufferToImageCopyInfo
         uint32_t width           = 0; // [pixels]
         uint32_t height          = 0; // [pixels]
         uint32_t depth           = 0; // [pixels]
+        uint32_t plane           = 0; // Default is 0; can be 0, 1, or 2. Only used for multi-planar images.
     } dstImage;
 };
 

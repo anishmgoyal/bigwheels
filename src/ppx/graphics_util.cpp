@@ -1316,18 +1316,12 @@ Result CopyBufferYUVToImage(
         stagingBuffer->UnmapMemory();
     }
 
-    // Copy info
-    std::vector<grfx::BufferToImageCopyInfo> copyInfos;
-
-    const bool isYUV = (pImage->GetFormat() == grfx::FORMAT_G8_B8R8_2PLANE_420_UNORM);
-    PPX_ASSERT_MSG(isYUV, "This is only used by yuv format for now!");
-
-    for (size_t plane = 0; plane < 2; ++plane) {
-        grfx::BufferToImageCopyInfo copyInfo = {};
-        copyInfo.srcBuffer.imageWidth        = 0;
-        copyInfo.srcBuffer.imageHeight       = 0;
+    const auto buildCopyInfo = [](uint32_t pixelWidth, uint32_t pixelHeight, uint32_t srcOffset = 0, uint8_t plane = 0) {
+        grfx::BufferToImageCopyInfo copyInfo {};
+        copyInfo.srcBuffer.imageWidth        = pixelWidth;
+        copyInfo.srcBuffer.imageHeight       = pixelHeight;
         copyInfo.srcBuffer.imageRowStride    = 0;
-        copyInfo.srcBuffer.footprintOffset   = (plane == 0) ? 0 : ((bufferSize / 3) * 2); // TODO(wangra): there is an alignment
+        copyInfo.srcBuffer.footprintOffset   = srcOffset;
         copyInfo.srcBuffer.footprintWidth    = 0;
         copyInfo.srcBuffer.footprintHeight   = 0;
         copyInfo.srcBuffer.footprintDepth    = 1;
@@ -1337,10 +1331,42 @@ Result CopyBufferYUVToImage(
         copyInfo.dstImage.x                  = 0;
         copyInfo.dstImage.y                  = 0;
         copyInfo.dstImage.z                  = 0;
-        copyInfo.dstImage.width              = pImage->GetWidth() / (plane + 1);
-        copyInfo.dstImage.height             = pImage->GetHeight() / (plane + 1);
+        copyInfo.dstImage.width              = pixelWidth;
+        copyInfo.dstImage.height             = pixelHeight;
         copyInfo.dstImage.depth              = 1;
-        copyInfos.push_back(copyInfo);
+        copyInfo.dstImage.plane              = plane;
+        return copyInfo;
+    };
+
+    // Copy info
+    const grfx::FormatDesc* formatDesc = grfx::GetFormatDescription(pImage->GetFormat());
+    PPX_ASSERT_MSG(formatDesc != nullptr, "Could not find description for format " << pImage->GetFormat() << ", cannot copy buffer to iamge.");
+    std::optional<grfx::FormatPlaneDesc> planeDesc = grfx::GetFormatPlaneDescription(pImage->GetFormat());
+
+    std::vector<grfx::BufferToImageCopyInfo> copyInfos;
+
+    if (!planeDesc.has_value()) {
+        copyInfos.push_back(buildCopyInfo(pImage->GetWidth(), pImage->GetHeight()));
+    }
+    else {
+        uint32_t imageSize = 0;
+        for (size_t plane = 0; plane < planeDesc->planes.size(); ++plane) {
+            // Get pixel width and height of the plane.
+            const uint32_t planeWidth =
+                GetPlaneWidthInPixels(planeDesc->planes[plane], formatDesc->chromaSubsampling, pImage->GetWidth());
+            const uint32_t planeHeight =
+                GetPlaneHeightInPixels(planeDesc->planes[plane], formatDesc->chromaSubsampling, pImage->GetHeight());
+
+            // Add next plane to copy infos.
+            copyInfos.push_back(buildCopyInfo(planeWidth, planeHeight, imageSize, plane));
+
+            // Update src offset
+            imageSize += GetPlaneSizeInBytes(
+                planeDesc->planes[plane],
+                formatDesc->chromaSubsampling,
+                pImage->GetWidth(),
+                pImage->GetHeight());
+        }
     }
 
     // Copy to GPU image
@@ -1348,10 +1374,10 @@ Result CopyBufferYUVToImage(
         copyInfos,
         stagingBuffer,
         pImage,
-        1,
-        1,
-        1,
-        1,
+        /*mipLevel=*/1,
+        /*mipLevelCount=*/1,
+        /*arrayLayer=*/1,
+        /*arrayLayerCount=*/1,
         stateBefore,
         stateAfter);
     if (Failed(ppxres)) {
@@ -1894,7 +1920,7 @@ Result LoadFramesFromRawVideo(
     }
 
     uint32_t frameSize = 0; // As measured in bytes, not pixels.
-    if (formatDesc->isPlanar) {
+    if (formatDesc->isMultiPlanar) {
         std::optional<grfx::FormatPlaneDesc> formatPlanes = grfx::GetFormatPlaneDescription(format);
         PPX_ASSERT_MSG(formatPlanes.has_value(), "No planes found for format " << format);
         frameSize = GetPlanarImageSizeInBytes(*formatDesc, *formatPlanes, width, height);

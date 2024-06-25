@@ -886,15 +886,16 @@ void CommandBuffer::CopyBufferToImage(
     PPX_ASSERT_NULL_ARG(pSrcBuffer);
     PPX_ASSERT_NULL_ARG(pDstImage);
 
+    const grfx::FormatDesc* formatDesc = grfx::GetFormatDescription(pDstImage->GetFormat());
+    PPX_ASSERT_MSG(formatDesc != nullptr, "Failed to find format description for " << pDstImage->GetFormat() << ", cannot copy buffer to image.");
+
     std::vector<VkBufferImageCopy> regions(pCopyInfos.size());
-    const bool                     isYUV         = (pDstImage->GetFormat() == FORMAT_G8_B8R8_2PLANE_420_UNORM);
-    VkImageAspectFlagBits          aspectMask[2] = {VK_IMAGE_ASPECT_PLANE_0_BIT, VK_IMAGE_ASPECT_PLANE_1_BIT};
 
     for (size_t i = 0; i < pCopyInfos.size(); i++) {
         regions[i].bufferOffset                    = static_cast<VkDeviceSize>(pCopyInfos[i].srcBuffer.footprintOffset);
         regions[i].bufferRowLength                 = pCopyInfos[i].srcBuffer.imageWidth;
         regions[i].bufferImageHeight               = pCopyInfos[i].srcBuffer.imageHeight;
-        regions[i].imageSubresource.aspectMask     = isYUV ? aspectMask[i] : ToApi(pDstImage)->GetVkImageAspectFlags();
+        regions[i].imageSubresource.aspectMask     = ToApi(pDstImage)->GetVkImageAspectFlags();
         regions[i].imageSubresource.mipLevel       = pCopyInfos[i].dstImage.mipLevel;
         regions[i].imageSubresource.baseArrayLayer = pCopyInfos[i].dstImage.arrayLayer;
         regions[i].imageSubresource.layerCount     = pCopyInfos[i].dstImage.arrayLayerCount;
@@ -904,6 +905,19 @@ void CommandBuffer::CopyBufferToImage(
         regions[i].imageExtent.width               = pCopyInfos[i].dstImage.width;
         regions[i].imageExtent.height              = pCopyInfos[i].dstImage.height;
         regions[i].imageExtent.depth               = pCopyInfos[i].dstImage.depth;
+
+        if (formatDesc->isMultiPlanar) {
+            // Note: we can left shift from PLANE_0 to get to the bits for
+            // PLANE_1 and PLANE_2.
+            VkImageAspectFlags planeFlag = VK_IMAGE_ASPECT_PLANE_0_BIT << pCopyInfos[i].dstImage.plane;
+            // For multi-plane images, we may only set one single aspect mask
+            // flag bit, and that should be the id for the plane we're writing
+            // to.
+            regions[i].imageSubresource.aspectMask = planeFlag;
+        }
+        else {
+            PPX_ASSERT_MSG(pCopyInfos[i].dstImage.plane == 0, "Destination image plane should be 0 for a single plane image.");
+        }
     }
 
     vkCmdCopyBufferToImage(

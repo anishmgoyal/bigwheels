@@ -15,6 +15,8 @@
 #ifndef ppx_grfx_vk_image_h
 #define ppx_grfx_vk_image_h
 
+#include <vector>
+
 #include "ppx/grfx/vk/vk_config.h"
 #include "ppx/grfx/grfx_image.h"
 
